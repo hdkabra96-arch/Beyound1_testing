@@ -1,0 +1,6 @@
+{
+  "name": "Beyond Classroom",
+  "description": "Production-ready educational platform architecture for Class 1-8 Mathematics study materials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
