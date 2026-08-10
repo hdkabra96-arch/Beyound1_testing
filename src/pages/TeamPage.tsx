@@ -189,6 +189,40 @@ export const TeamPage: React.FC<TeamPageProps> = ({ onNavigate, onOpenAuth }) =>
         </div>
       </section>
 
+      {/* SECTION 2 — TEAM INTRODUCTION */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/90 shadow-xl overflow-hidden">
+          {/* Subtle mathematical visual background pattern */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none flex items-center justify-between text-slate-900 overflow-hidden font-mono text-3xl select-none">
+            <div className="space-y-4 -rotate-6">
+              <div>f(x) = ax² + bx + c</div>
+              <div>a² + b² = c²</div>
+              <div>∑ (xᵢ - μ)² / N</div>
+              <div>π ≈ 3.14159265...</div>
+            </div>
+            <div className="space-y-4 rotate-6">
+              <div>∫ x dx = ½x² + C</div>
+              <div>sin²θ + cos²θ = 1</div>
+              <div>∠ABC + ∠CBD = 180°</div>
+              <div>x = (-b ± √(b² - 4ac)) / 2a</div>
+            </div>
+          </div>
+
+          <div className="relative z-10 max-w-3xl mx-auto text-center space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-50 text-[#2563EB] text-xs font-extrabold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Academic Integrity & Quality</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black text-[#111827] tracking-tight">
+              Expertise Behind Every Practice Paper
+            </h2>
+            <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+              Every practice paper reflects the combined effort of educators, academic specialists, curriculum advisors, and platform professionals who understand both the subject and the learner.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* CATEGORY FILTER TAB BAR */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center justify-center gap-2 p-2 rounded-2xl bg-slate-100/80 border border-slate-200 max-w-3xl mx-auto">
