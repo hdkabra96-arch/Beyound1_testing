@@ -42,14 +42,14 @@ export const COLOR_PALETTE = {
     600: '#0891b2',
   },
   dark: {
-    bg: '#faf8f5',
+    bg: '#ffffff',
     card: '#ffffff',
     border: '#e2e8f0',
     text: '#000000',
     subtext: '#1e293b',
   },
   light: {
-    bg: '#faf8f5',
+    bg: '#ffffff',
     card: '#ffffff',
     border: '#e2e8f0',
     text: '#000000',

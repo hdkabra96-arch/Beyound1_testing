@@ -65,8 +65,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${
         isScrolled
-          ? 'bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-md shadow-slate-900/5'
-          : 'bg-white/90 backdrop-blur-sm border-b border-slate-200/80'
+          ? 'bg-white/95 backdrop-blur-md shadow-md shadow-slate-900/5'
+          : 'bg-white/90 backdrop-blur-sm'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -257,6 +257,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
           </div>
         </div>
       )}
+      {/* Subtle Brand Accent Line */}
+      <div className="h-[2px] w-full bg-gradient-to-r from-emerald-500 via-cyan-500 via-blue-600 via-purple-600 via-fuchsia-500 to-amber-500 opacity-75" />
     </header>
   );
 };

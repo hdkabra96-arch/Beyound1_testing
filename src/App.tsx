@@ -81,7 +81,7 @@ function BeyondClassroomPublicWebsite() {
       case 'partners':
         return <PartnersPage onNavigate={setCurrentPage} />;
       case 'team':
-        return <TeamPage />;
+        return <TeamPage onNavigate={setCurrentPage} onOpenAuth={handleOpenAuth} />;
       case 'career':
         return <CareerPage />;
       case 'blog':

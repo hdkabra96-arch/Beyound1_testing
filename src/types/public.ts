@@ -56,10 +56,13 @@ export interface TeamMember {
   id: string;
   name: string;
   role: string;
+  category?: 'educator' | 'content_specialist' | 'advisor' | 'platform';
   qualification: string;
+  specialization?: string;
+  experience?: string;
   bio: string;
   avatar: string;
-  expertise: string[];
+  expertise?: string[];
 }
 
 export interface Partner {
