@@ -3,7 +3,9 @@ import { ThemeProvider, useTheme } from './design-system/theme-context';
 import { ToastProvider } from './components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from './services/admin-auth-context';
 import { AdminStoreProvider, useAdminStore } from './services/admin-store';
+import { StudentProvider, useStudent } from './services/student-context';
 import { AdminRoot } from './components/admin/AdminRoot';
+import { StudentDashboardRoot } from './components/dashboard/StudentDashboardRoot';
 
 import { PublicHeader } from './components/public/Header';
 import { PublicFooter } from './components/public/PublicFooter';
@@ -23,10 +25,10 @@ import { AffiliatePage } from './pages/AffiliatePage';
 import { LegalPages } from './pages/LegalPages';
 
 import { PublicPage } from './types/public';
-import { Shield, Sparkles, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { Shield, Sparkles, LayoutGrid, AlertTriangle, LayoutDashboard, GraduationCap } from 'lucide-react';
 
 function BeyondClassroomApp() {
-  const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
+  const [viewMode, setViewMode] = useState<'public' | 'admin' | 'dashboard'>('public');
   const [currentPage, setCurrentPage] = useState<PublicPage>('home');
   const [selectedGrade, setSelectedGrade] = useState<string>('class_5');
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -34,11 +36,16 @@ function BeyondClassroomApp() {
 
   const { currentAdmin } = useAdminAuth();
   const { globalSettings } = useAdminStore();
+  const { currentStudent } = useStudent();
 
   // Dynamic SEO Meta Title & Description updates
   useEffect(() => {
     if (viewMode === 'admin') {
       document.title = 'Beyond Classroom | Administration Control Center';
+      return;
+    }
+    if (viewMode === 'dashboard') {
+      document.title = 'Student Dashboard | Beyond Classroom Math Desk';
       return;
     }
 
@@ -66,6 +73,16 @@ function BeyondClassroomApp() {
     setAuthMode(mode);
     setAuthModalOpen(true);
   };
+
+  // If in Student Dashboard mode, render Student Dashboard Root
+  if (viewMode === 'dashboard') {
+    return (
+      <StudentDashboardRoot
+        onViewPublicSite={() => setViewMode('public')}
+        onOpenAdminPortal={() => setViewMode('admin')}
+      />
+    );
+  }
 
   // If in Admin mode, render full Admin Portal
   if (viewMode === 'admin') {
@@ -146,6 +163,7 @@ function BeyondClassroomApp() {
         activePage={currentPage}
         onNavigate={setCurrentPage}
         onOpenAuth={handleOpenAuth}
+        onOpenDashboard={() => setViewMode('dashboard')}
         selectedGrade={selectedGrade}
         onGradeSelect={setSelectedGrade}
       />
@@ -156,14 +174,23 @@ function BeyondClassroomApp() {
       {/* Footer */}
       <PublicFooter onNavigate={setCurrentPage} onGradeSelect={setSelectedGrade} />
 
-      {/* Discreet floating Admin Switcher Pill button */}
-      <div className="fixed bottom-4 right-4 z-40">
+      {/* Floating Mode Switcher (Student Dashboard & Admin Portal) */}
+      <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+        <button
+          onClick={() => setViewMode('dashboard')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-indigo-600/95 hover:bg-indigo-600 border border-indigo-400/50 text-white text-xs font-bold shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer group"
+          title="Open Student Learning Dashboard"
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping group-hover:bg-white" />
+          <LayoutDashboard className="w-3.5 h-3.5 text-white" />
+          <span>Student Dashboard</span>
+        </button>
+
         <button
           onClick={() => setViewMode('admin')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-900/90 hover:bg-slate-900 border border-slate-700/80 hover:border-indigo-500/80 text-white text-xs font-bold shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer group"
           title="Open Beyond Classroom Admin Panel"
         >
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping group-hover:bg-indigo-400" />
           <Shield className="w-3.5 h-3.5 text-indigo-400" />
           <span>Admin Portal</span>
         </button>
@@ -174,6 +201,7 @@ function BeyondClassroomApp() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         initialMode={authMode}
+        onSuccess={() => setViewMode('dashboard')}
       />
     </div>
   );
@@ -184,9 +212,11 @@ export default function App() {
     <ThemeProvider>
       <AdminAuthProvider>
         <AdminStoreProvider>
-          <ToastProvider>
-            <BeyondClassroomApp />
-          </ToastProvider>
+          <StudentProvider>
+            <ToastProvider>
+              <BeyondClassroomApp />
+            </ToastProvider>
+          </StudentProvider>
         </AdminStoreProvider>
       </AdminAuthProvider>
     </ThemeProvider>

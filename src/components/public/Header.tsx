@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PublicPage } from '../../types/public';
 import { useTheme } from '../../design-system/theme-context';
+import { useStudent } from '../../services/student-context';
 import {
   Calculator,
   Moon,
@@ -15,6 +16,7 @@ import {
   BookOpen,
   GraduationCap,
   Award,
+  LayoutDashboard,
 } from 'lucide-react';
 import { CLASS_GRADES } from '../../design-system/tokens';
 
@@ -22,6 +24,7 @@ interface PublicHeaderProps {
   activePage: PublicPage;
   onNavigate: (page: PublicPage) => void;
   onOpenAuth: (mode: 'login' | 'signup') => void;
+  onOpenDashboard?: () => void;
   selectedGrade?: string;
   onGradeSelect?: (gradeId: string) => void;
 }
@@ -30,10 +33,12 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
   activePage,
   onNavigate,
   onOpenAuth,
+  onOpenDashboard,
   selectedGrade = 'class_5',
   onGradeSelect,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const { currentStudent } = useStudent();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -174,6 +179,21 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-600" />}
             </button>
 
+            {/* Student Dashboard Direct Access Button */}
+            {onOpenDashboard && (
+              <button
+                onClick={onOpenDashboard}
+                className="px-3.5 py-2 rounded-xl text-xs font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-300 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Open Student Dashboard"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Student Dashboard</span>
+                {currentStudent && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </button>
+            )}
+
             {/* Auth Buttons */}
             <button
               onClick={() => onOpenAuth('login')}
@@ -234,6 +254,19 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
               );
             })}
           </nav>
+
+          {onOpenDashboard && (
+            <button
+              onClick={() => {
+                onOpenDashboard();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center gap-2 shadow-md cursor-pointer"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Enter Student Dashboard</span>
+            </button>
+          )}
 
           <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
             <button

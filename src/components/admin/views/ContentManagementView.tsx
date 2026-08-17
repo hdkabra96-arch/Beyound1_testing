@@ -24,7 +24,9 @@ import {
   Layers,
   GraduationCap,
   FolderOpen,
+  BookOpen,
 } from 'lucide-react';
+import { ProtectedPdfViewerModal } from '../../ui/ProtectedPdfViewerModal';
 
 interface ContentManagementViewProps {
   initialTypeFilter?: ContentType | 'all';
@@ -55,6 +57,7 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
   const [editDrawerContent, setEditDrawerContent] = useState<EducationalContent | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [previewContent, setPreviewContent] = useState<EducationalContent | null>(null);
+  const [protectedPdfPreview, setProtectedPdfPreview] = useState<EducationalContent | null>(null);
 
   // Add Content Form State
   const [newTitle, setNewTitle] = useState('');
@@ -70,6 +73,11 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
   const [newTotalMarks, setNewTotalMarks] = useState(50);
   const [newQuestionCount, setNewQuestionCount] = useState(15);
   const [newPdfUrl, setNewPdfUrl] = useState('/downloads/practice_paper_std5.pdf');
+  const [newPdfFileName, setNewPdfFileName] = useState('Chapter_Study_Notes.pdf');
+  const [newPdfPagesCount, setNewPdfPagesCount] = useState(3);
+  const [newPdfFileSize, setNewPdfFileSize] = useState('2.4 MB');
+  const [newDisableDownload, setNewDisableDownload] = useState(true);
+  const [newKeyPoints, setNewKeyPoints] = useState('');
   const [newHasAnswerKey, setNewHasAnswerKey] = useState(true);
   const [newHasStepByStep, setNewHasStepByStep] = useState(true);
   const [newHasHints, setNewHasHints] = useState(true);
@@ -88,13 +96,21 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
     e.preventDefault();
     if (!newTitle) return;
 
+    const keyPointsArray = newKeyPoints
+      ? newKeyPoints.split('\n').filter((l) => l.trim().length > 0)
+      : [
+          'Core mathematical definitions and rules.',
+          'Step-by-step worked illustrations.',
+          'Formulas and exam checklist.',
+        ];
+
     addContent({
       class_id: newClass,
       subject_id: newSubject,
       chapter_id: newChapter,
-      title: newTitle,
+      title: newType === 'notes' && !newTitle.includes('(PDF)') ? `${newTitle} (PDF)` : newTitle,
       content_type: newType,
-      description: newDesc || `Standard practice set for ${newClass.replace('_', ' ').toUpperCase()}.`,
+      description: newDesc || `Standard curriculum material for ${newClass.replace('_', ' ').toUpperCase()}.`,
       difficulty: newDifficulty,
       access_type: newAccessType,
       package_ids: newSelectedPackages,
@@ -104,6 +120,29 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
       total_marks: Number(newTotalMarks),
       question_count: Number(newQuestionCount),
       pdf_url: newPdfUrl,
+      pdf_filename: newPdfFileName || 'Chapter_Notes.pdf',
+      pdf_pages_count: Number(newPdfPagesCount) || 3,
+      pdf_file_size: newPdfFileSize || '2.4 MB',
+      disable_download: newType === 'notes' ? true : newDisableDownload,
+      key_summary_points: newType === 'notes' ? keyPointsArray : undefined,
+      pdf_pages_content:
+        newType === 'notes'
+          ? [
+              {
+                pageNumber: 1,
+                heading: `Section 1: Fundamental Concepts & Axioms`,
+                subheading: `${newTitle} — Essential Curriculum Unit`,
+                text: newDesc || 'Core study notes and key mathematical properties.',
+                keyPoints: keyPointsArray,
+                formulaHighlight: 'Core Rule: Check calculations and verify boundary steps.',
+                exampleQuestion: {
+                  question: `Key Conceptual Problem for ${newTitle}`,
+                  stepSolution: 'Step 1: Identify given variables.\nStep 2: Apply fundamental theorem.\nStep 3: Solve and simplify.',
+                  answer: 'Standard Verified Solution',
+                },
+              },
+            ]
+          : undefined,
       has_answer_key: newHasAnswerKey,
       has_step_by_step_solutions: newHasStepByStep,
       has_hints: newHasHints,
@@ -113,6 +152,7 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
     setAddModalOpen(false);
     setNewTitle('');
     setNewDesc('');
+    setNewKeyPoints('');
   };
 
   const handleDuplicate = (cnt: EducationalContent) => {
@@ -334,9 +374,15 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Preview modal */}
                           <button
-                            onClick={() => setPreviewContent(cnt)}
+                            onClick={() => {
+                              if (cnt.content_type === 'notes') {
+                                setProtectedPdfPreview(cnt);
+                              } else {
+                                setPreviewContent(cnt);
+                              }
+                            }}
                             className="p-1.5 rounded-lg bg-slate-800 text-indigo-400 hover:bg-slate-700 transition-colors cursor-pointer"
-                            title="Preview Content"
+                            title={cnt.content_type === 'notes' ? 'Preview Protected PDF Notes' : 'Preview Content'}
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -755,6 +801,67 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
                 </select>
               </div>
 
+              {/* PDF Specific Fields for Notes */}
+              {newType === 'notes' && (
+                <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 space-y-3">
+                  <div className="flex items-center gap-2 text-cyan-400 font-bold">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Protected Chapter Notes & Material (PDF)</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-300 text-[11px] flex items-center gap-2 border border-cyan-500/20">
+                    <Lock className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                    <span>
+                      <strong>Protected Mode Active:</strong> Students can view every page in the custom secure reader, but downloading, printing, and context-menu saving are strictly disabled.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">PDF File Name</label>
+                      <input
+                        type="text"
+                        value={newPdfFileName}
+                        onChange={(e) => setNewPdfFileName(e.target.value)}
+                        placeholder="e.g. Chapter_5_Notes.pdf"
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">Total Pages</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={newPdfPagesCount}
+                        onChange={(e) => setNewPdfPagesCount(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">File Size</label>
+                      <input
+                        type="text"
+                        value={newPdfFileSize}
+                        onChange={(e) => setNewPdfFileSize(e.target.value)}
+                        placeholder="e.g. 2.4 MB"
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-bold block mb-1">Key Summary & Revision Bullet Points (One per line)</label>
+                    <textarea
+                      rows={3}
+                      value={newKeyPoints}
+                      onChange={(e) => setNewKeyPoints(e.target.value)}
+                      placeholder="• Prime number definitions and sieve of Eratosthenes&#10;• Step-by-step simplification formulas&#10;• Important examination points"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-[11px]"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -773,6 +880,17 @@ export const ContentManagementView: React.FC<ContentManagementViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Protected PDF Viewer Modal Preview */}
+      {protectedPdfPreview && (
+        <ProtectedPdfViewerModal
+          isOpen={true}
+          content={protectedPdfPreview}
+          onClose={() => setProtectedPdfPreview(null)}
+          studentName="Administrator (Preview Mode)"
+          studentGrade={classes.find((c) => c.id === protectedPdfPreview.class_id)?.name || 'Class Curriculum'}
+        />
       )}
     </div>
   );

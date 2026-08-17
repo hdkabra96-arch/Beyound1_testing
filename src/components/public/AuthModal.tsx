@@ -3,6 +3,7 @@ import { Modal } from '../ui/modal';
 import { FormField, Input, PasswordInput, Select } from '../ui/input';
 import { Button } from '../ui/button';
 import { useToast } from '../ui/toast';
+import { useStudent } from '../../services/student-context';
 import { Sparkles, LogIn, UserPlus, CheckCircle2 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -27,6 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   const { addToast } = useToast();
+  const { loginStudent, signupStudent } = useStudent();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,16 +36,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setTimeout(() => {
       setLoading(false);
-      addToast(
-        'success',
-        mode === 'login' ? 'Welcome Back!' : 'Account Created Successfully!',
-        mode === 'login'
-          ? `Signed in as ${email}`
-          : `Profile created for Class 5 Student.`
-      );
+
+      if (mode === 'login') {
+        const success = loginStudent(email || 'aarav.sharma@example.com');
+        addToast(
+          'success',
+          'Welcome to Beyond Classroom!',
+          `Signed in as ${email || 'Aarav Sharma'}. Directing to your Dashboard.`
+        );
+      } else {
+        signupStudent({
+          name: fullName || 'New Student',
+          email: email || 'student@example.com',
+          classId: grade,
+          board: 'CBSE',
+        });
+        addToast(
+          'success',
+          'Account Created Successfully!',
+          `Profile created for ${grade.replace('class_', 'Class ')} Student.`
+        );
+      }
+
       onClose();
       if (onSuccess) onSuccess();
-    }, 800);
+    }, 600);
   };
 
   return (

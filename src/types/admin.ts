@@ -116,6 +116,20 @@ export interface EducationalContent {
   total_marks: number;
   question_count: number;
   pdf_url?: string;
+  pdf_filename?: string;
+  pdf_pages_count?: number;
+  pdf_file_size?: string;
+  disable_download?: boolean; // Strictly true for student notes/materials to prevent download
+  key_summary_points?: string[];
+  pdf_pages_content?: Array<{
+    pageNumber: number;
+    heading: string;
+    subheading?: string;
+    text: string;
+    keyPoints?: string[];
+    formulaHighlight?: string;
+    exampleQuestion?: { question: string; stepSolution: string; answer: string };
+  }>;
   has_answer_key?: boolean;
   has_step_by_step_solutions?: boolean;
   has_hints?: boolean;
