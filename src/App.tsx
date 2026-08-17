@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider, useTheme } from './design-system/theme-context';
 import { ToastProvider } from './components/ui/toast';
+import { AdminAuthProvider, useAdminAuth } from './services/admin-auth-context';
+import { AdminStoreProvider, useAdminStore } from './services/admin-store';
+import { AdminRoot } from './components/admin/AdminRoot';
+
 import { PublicHeader } from './components/public/Header';
 import { PublicFooter } from './components/public/PublicFooter';
 import { AuthModal } from './components/public/AuthModal';
@@ -19,17 +23,25 @@ import { AffiliatePage } from './pages/AffiliatePage';
 import { LegalPages } from './pages/LegalPages';
 
 import { PublicPage } from './types/public';
-import { CLASS_GRADES } from './design-system/tokens';
-import { Sparkles, LayoutGrid } from 'lucide-react';
+import { Shield, Sparkles, LayoutGrid, AlertTriangle } from 'lucide-react';
 
-function BeyondClassroomPublicWebsite() {
+function BeyondClassroomApp() {
+  const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
   const [currentPage, setCurrentPage] = useState<PublicPage>('home');
   const [selectedGrade, setSelectedGrade] = useState<string>('class_5');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
+  const { currentAdmin } = useAdminAuth();
+  const { globalSettings } = useAdminStore();
+
   // Dynamic SEO Meta Title & Description updates
   useEffect(() => {
+    if (viewMode === 'admin') {
+      document.title = 'Beyond Classroom | Administration Control Center';
+      return;
+    }
+
     const pageTitles: Record<PublicPage, string> = {
       home: 'Beyond Classroom | Class 1 to 8 Mathematics Excellence',
       about: 'About Us | Beyond Classroom - Redefining K-8 Mathematics',
@@ -48,12 +60,17 @@ function BeyondClassroomPublicWebsite() {
     };
 
     document.title = pageTitles[currentPage] || 'Beyond Classroom';
-  }, [currentPage]);
+  }, [currentPage, viewMode]);
 
   const handleOpenAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
     setAuthModalOpen(true);
   };
+
+  // If in Admin mode, render full Admin Portal
+  if (viewMode === 'admin') {
+    return <AdminRoot onViewPublicSite={() => setViewMode('public')} />;
+  }
 
   const renderCurrentPage = () => {
     switch (currentPage) {
@@ -110,7 +127,20 @@ function BeyondClassroomPublicWebsite() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--bg-primary)] flex flex-col transition-colors duration-300 font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--bg-primary)] flex flex-col transition-colors duration-300 font-sans selection:bg-indigo-500 selection:text-white relative">
+      {/* Maintenance Mode Banner Notice if active */}
+      {globalSettings?.maintenanceMode?.isEnabled && (
+        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shadow-md">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            {globalSettings.maintenanceMode.title}: {globalSettings.maintenanceMode.message}
+          </span>
+          {globalSettings.maintenanceMode.expectedAvailability && (
+            <span className="opacity-80">({globalSettings.maintenanceMode.expectedAvailability})</span>
+          )}
+        </div>
+      )}
+
       {/* Top Header Navigation */}
       <PublicHeader
         activePage={currentPage}
@@ -126,6 +156,19 @@ function BeyondClassroomPublicWebsite() {
       {/* Footer */}
       <PublicFooter onNavigate={setCurrentPage} onGradeSelect={setSelectedGrade} />
 
+      {/* Discreet floating Admin Switcher Pill button */}
+      <div className="fixed bottom-4 right-4 z-40">
+        <button
+          onClick={() => setViewMode('admin')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-900/90 hover:bg-slate-900 border border-slate-700/80 hover:border-indigo-500/80 text-white text-xs font-bold shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer group"
+          title="Open Beyond Classroom Admin Panel"
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping group-hover:bg-indigo-400" />
+          <Shield className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Admin Portal</span>
+        </button>
+      </div>
+
       {/* Login / Signup Modal */}
       <AuthModal
         isOpen={authModalOpen}
@@ -139,9 +182,13 @@ function BeyondClassroomPublicWebsite() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ToastProvider>
-        <BeyondClassroomPublicWebsite />
-      </ToastProvider>
+      <AdminAuthProvider>
+        <AdminStoreProvider>
+          <ToastProvider>
+            <BeyondClassroomApp />
+          </ToastProvider>
+        </AdminStoreProvider>
+      </AdminAuthProvider>
     </ThemeProvider>
   );
 }

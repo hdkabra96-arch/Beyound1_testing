@@ -1,0 +1,949 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  AcademicClass,
+  AcademicSubject,
+  AcademicChapter,
+  EducationalContent,
+  PackageItem,
+  Student,
+  PaymentTransaction,
+  DashboardFeatureConfig,
+  GlobalWebsiteSettings,
+  AnnouncementItem,
+  NotificationItem,
+  AdminActivityLog,
+  StudentContentOverrides,
+} from '../types/admin';
+import {
+  INITIAL_CLASSES,
+  INITIAL_SUBJECTS,
+  INITIAL_CHAPTERS,
+  INITIAL_EDUCATIONAL_CONTENT,
+  INITIAL_PACKAGES,
+  INITIAL_STUDENTS,
+  INITIAL_PAYMENTS,
+  INITIAL_DASHBOARD_CONFIG,
+  INITIAL_GLOBAL_SETTINGS,
+  INITIAL_ANNOUNCEMENTS,
+  INITIAL_NOTIFICATIONS,
+  INITIAL_ACTIVITY_LOGS,
+} from './admin-data';
+import { useAdminAuth } from './admin-auth-context';
+
+interface AdminStoreType {
+  // Data entities
+  classes: AcademicClass[];
+  subjects: AcademicSubject[];
+  chapters: AcademicChapter[];
+  contents: EducationalContent[];
+  packages: PackageItem[];
+  students: Student[];
+  payments: PaymentTransaction[];
+  dashboardConfig: DashboardFeatureConfig;
+  globalSettings: GlobalWebsiteSettings;
+  announcements: AnnouncementItem[];
+  notifications: NotificationItem[];
+  activityLogs: AdminActivityLog[];
+
+  // Class Actions
+  addClass: (cls: Omit<AcademicClass, 'id'>) => void;
+  updateClass: (id: string, cls: Partial<AcademicClass>) => void;
+  toggleClassStatus: (id: string) => void;
+  reorderClasses: (orderedIds: string[]) => void;
+
+  // Subject Actions
+  addSubject: (subj: Omit<AcademicSubject, 'id'>) => void;
+  updateSubject: (id: string, subj: Partial<AcademicSubject>) => void;
+  deleteSubject: (id: string) => void;
+  toggleSubjectStatus: (id: string) => void;
+
+  // Chapter Actions
+  addChapter: (chap: Omit<AcademicChapter, 'id'>) => void;
+  updateChapter: (id: string, chap: Partial<AcademicChapter>) => void;
+  deleteChapter: (id: string) => void;
+  toggleChapterStatus: (id: string) => void;
+
+  // Content Actions
+  addContent: (content: Omit<EducationalContent, 'id' | 'created_at' | 'updated_at'>) => void;
+  updateContent: (id: string, content: Partial<EducationalContent>) => void;
+  deleteContent: (id: string) => void;
+  toggleContentPublish: (id: string) => void;
+  toggleContentEnabled: (id: string) => void;
+
+  // Package Actions
+  addPackage: (pkg: Omit<PackageItem, 'id'>) => void;
+  updatePackage: (id: string, pkg: Partial<PackageItem>) => void;
+  togglePackageStatus: (id: string) => void;
+  updatePackageFeatureMatrix: (packageId: string, featureKey: keyof PackageItem['features'], value: boolean) => void;
+
+  // Student Actions
+  addStudent: (student: Omit<Student, 'id' | 'createdAt' | 'lastLogin'>) => void;
+  updateStudent: (id: string, student: Partial<Student>) => void;
+  toggleStudentAccountStatus: (id: string) => void;
+  assignStudentPackage: (studentId: string, packageId: string, classId?: string, validityDays?: number) => void;
+  extendStudentExpiry: (studentId: string, additionalDays: number) => void;
+  updateStudentOverrides: (studentId: string, overrides: StudentContentOverrides) => void;
+  adjustCustomPaperLimit: (studentId: string, newLimit: number) => void;
+  recordCustomPaperUsage: (studentId: string) => boolean;
+  deleteStudent: (id: string) => void;
+
+  // Payment Actions
+  addPayment: (payment: Omit<PaymentTransaction, 'id'>) => void;
+  updatePaymentStatus: (id: string, status: PaymentTransaction['status']) => void;
+  verifyAndActivatePayment: (paymentId: string) => void;
+
+  // Config & Settings Actions
+  updateDashboardConfig: (key: keyof DashboardFeatureConfig, value: boolean) => void;
+  updateGlobalSettings: (settings: Partial<GlobalWebsiteSettings>) => void;
+  toggleMaintenanceMode: (enabled: boolean, message?: string, title?: string, expected?: string) => void;
+
+  // Announcements & Notifications
+  addAnnouncement: (announcement: Omit<AnnouncementItem, 'id' | 'createdAt'>) => void;
+  updateAnnouncement: (id: string, announcement: Partial<AnnouncementItem>) => void;
+  deleteAnnouncement: (id: string) => void;
+  sendNotification: (notification: Omit<NotificationItem, 'id' | 'createdAt' | 'isRead'> & { isRead?: boolean }) => void;
+
+  // Core Access Control Validator (Requirement 26 & 30)
+  canUserAccessContent: (studentId: string, contentId: string) => { allowed: boolean; reason?: string };
+  canStudentUseFeature: (studentId: string, featureKey: keyof DashboardFeatureConfig) => { allowed: boolean; reason?: string };
+  canStudentDownloadPDF: (studentId: string, contentId: string) => { allowed: boolean; reason?: string };
+  canStudentGenerateCustomPaper: (studentId: string) => { allowed: boolean; remainingCount: number; reason?: string };
+
+  // Reset to Factory Defaults
+  resetAllDataToFactoryDefaults: () => void;
+}
+
+const AdminStoreContext = createContext<AdminStoreType | undefined>(undefined);
+
+const STORAGE_KEYS = {
+  CLASSES: 'bc_admin_classes_v2',
+  SUBJECTS: 'bc_admin_subjects_v2',
+  CHAPTERS: 'bc_admin_chapters_v2',
+  CONTENTS: 'bc_admin_contents_v2',
+  PACKAGES: 'bc_admin_packages_v2',
+  STUDENTS: 'bc_admin_students_v2',
+  PAYMENTS: 'bc_admin_payments_v2',
+  DASHBOARD_CONFIG: 'bc_admin_dash_config_v2',
+  GLOBAL_SETTINGS: 'bc_admin_global_settings_v2',
+  ANNOUNCEMENTS: 'bc_admin_announcements_v2',
+  NOTIFICATIONS: 'bc_admin_notifications_v2',
+  ACTIVITY_LOGS: 'bc_admin_activity_logs_v2',
+};
+
+function loadStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentAdmin } = useAdminAuth();
+
+  const [classes, setClasses] = useState<AcademicClass[]>(() => loadStorage(STORAGE_KEYS.CLASSES, INITIAL_CLASSES));
+  const [subjects, setSubjects] = useState<AcademicSubject[]>(() => loadStorage(STORAGE_KEYS.SUBJECTS, INITIAL_SUBJECTS));
+  const [chapters, setChapters] = useState<AcademicChapter[]>(() => loadStorage(STORAGE_KEYS.CHAPTERS, INITIAL_CHAPTERS));
+  const [contents, setContents] = useState<EducationalContent[]>(() => loadStorage(STORAGE_KEYS.CONTENTS, INITIAL_EDUCATIONAL_CONTENT));
+  const [packages, setPackages] = useState<PackageItem[]>(() => loadStorage(STORAGE_KEYS.PACKAGES, INITIAL_PACKAGES));
+  const [students, setStudents] = useState<Student[]>(() => loadStorage(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS));
+  const [payments, setPayments] = useState<PaymentTransaction[]>(() => loadStorage(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS));
+  const [dashboardConfig, setDashboardConfig] = useState<DashboardFeatureConfig>(() => loadStorage(STORAGE_KEYS.DASHBOARD_CONFIG, INITIAL_DASHBOARD_CONFIG));
+  const [globalSettings, setGlobalSettings] = useState<GlobalWebsiteSettings>(() => loadStorage(STORAGE_KEYS.GLOBAL_SETTINGS, INITIAL_GLOBAL_SETTINGS));
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => loadStorage(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS));
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStorage(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS));
+  const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(() => loadStorage(STORAGE_KEYS.ACTIVITY_LOGS, INITIAL_ACTIVITY_LOGS));
+
+  // Persistence hooks
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes)); }, [classes]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects)); }, [subjects]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CHAPTERS, JSON.stringify(chapters)); }, [chapters]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CONTENTS, JSON.stringify(contents)); }, [contents]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packages)); }, [packages]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students)); }, [students]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments)); }, [payments]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(dashboardConfig)); }, [dashboardConfig]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.GLOBAL_SETTINGS, JSON.stringify(globalSettings)); }, [globalSettings]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements)); }, [announcements]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(activityLogs)); }, [activityLogs]);
+
+  // Logging helper
+  const logActivity = useCallback((action: string, module: string, details: string) => {
+    const newLog: AdminActivityLog = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      adminId: currentAdmin?.id || 'system',
+      adminName: currentAdmin?.name || 'System / Admin',
+      adminRole: currentAdmin?.role || 'super_admin',
+      action,
+      module,
+      details,
+      ipAddress: '103.21.144.12',
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    };
+    setActivityLogs((prev) => [newLog, ...prev.slice(0, 199)]);
+  }, [currentAdmin]);
+
+  // Class operations
+  const addClass = (cls: Omit<AcademicClass, 'id'>) => {
+    const id = `class_${cls.gradeNumber}`;
+    const newClass: AcademicClass = { ...cls, id };
+    setClasses((prev) => [...prev, newClass]);
+    logActivity('Class Added', 'Class Management', `Added ${cls.name}`);
+  };
+
+  const updateClass = (id: string, cls: Partial<AcademicClass>) => {
+    setClasses((prev) => prev.map((c) => (c.id === id ? { ...c, ...cls } : c)));
+    logActivity('Class Updated', 'Class Management', `Updated ${id}`);
+  };
+
+  const toggleClassStatus = (id: string) => {
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const next = !c.isEnabled;
+          logActivity('Class Status Toggled', 'Class Management', `${c.name} is now ${next ? 'Enabled' : 'Disabled'}`);
+          return { ...c, isEnabled: next };
+        }
+        return c;
+      })
+    );
+  };
+
+  const reorderClasses = (orderedIds: string[]) => {
+    setClasses((prev) => {
+      const map = new Map<string, AcademicClass>(prev.map((c) => [c.id, c]));
+      return orderedIds
+        .map((id, index) => {
+          const item = map.get(id);
+          if (!item) return null;
+          return { ...item, sortOrder: index + 1 };
+        })
+        .filter((c): c is AcademicClass => c !== null);
+    });
+    logActivity('Classes Reordered', 'Class Management', 'Updated curriculum class sort order');
+  };
+
+  // Subject operations
+  const addSubject = (subj: Omit<AcademicSubject, 'id'>) => {
+    const id = `subj_${Date.now()}`;
+    setSubjects((prev) => [...prev, { ...subj, id }]);
+    logActivity('Subject Created', 'Subject Management', `Created subject ${subj.name} for ${subj.classId}`);
+  };
+
+  const updateSubject = (id: string, subj: Partial<AcademicSubject>) => {
+    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...subj } : s)));
+    logActivity('Subject Updated', 'Subject Management', `Updated subject ${id}`);
+  };
+
+  const deleteSubject = (id: string) => {
+    const item = subjects.find((s) => s.id === id);
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
+    logActivity('Subject Deleted', 'Subject Management', `Deleted ${item?.name || id}`);
+  };
+
+  const toggleSubjectStatus = (id: string) => {
+    setSubjects((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          const next = !s.isEnabled;
+          logActivity('Subject Status Toggled', 'Subject Management', `${s.name} is now ${next ? 'Enabled' : 'Disabled'}`);
+          return { ...s, isEnabled: next };
+        }
+        return s;
+      })
+    );
+  };
+
+  // Chapter operations
+  const addChapter = (chap: Omit<AcademicChapter, 'id'>) => {
+    const id = `ch_${Date.now()}`;
+    setChapters((prev) => [...prev, { ...chap, id }]);
+    logActivity('Chapter Created', 'Chapter Management', `Created Chapter ${chap.chapterNumber}: ${chap.title}`);
+  };
+
+  const updateChapter = (id: string, chap: Partial<AcademicChapter>) => {
+    setChapters((prev) => prev.map((c) => (c.id === id ? { ...c, ...chap } : c)));
+    logActivity('Chapter Updated', 'Chapter Management', `Updated Chapter ${id}`);
+  };
+
+  const deleteChapter = (id: string) => {
+    const item = chapters.find((c) => c.id === id);
+    setChapters((prev) => prev.filter((c) => c.id !== id));
+    logActivity('Chapter Deleted', 'Chapter Management', `Deleted ${item?.title || id}`);
+  };
+
+  const toggleChapterStatus = (id: string) => {
+    setChapters((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const next = !c.isEnabled;
+          logActivity('Chapter Status Toggled', 'Chapter Management', `${c.title} is now ${next ? 'Enabled' : 'Disabled'}`);
+          return { ...c, isEnabled: next };
+        }
+        return c;
+      })
+    );
+  };
+
+  // Content operations
+  const addContent = (content: Omit<EducationalContent, 'id' | 'created_at' | 'updated_at'>) => {
+    const id = `cnt_${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const newContent: EducationalContent = {
+      ...content,
+      id,
+      created_at: now,
+      updated_at: now,
+    };
+    setContents((prev) => [newContent, ...prev]);
+    logActivity('Content Created', 'Educational Content', `Created ${content.content_type.toUpperCase()}: ${content.title}`);
+  };
+
+  const updateContent = (id: string, content: Partial<EducationalContent>) => {
+    const now = new Date().toISOString().split('T')[0];
+    setContents((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...content, updated_at: now } : c))
+    );
+    logActivity('Content Updated', 'Educational Content', `Updated content item ${id}`);
+  };
+
+  const deleteContent = (id: string) => {
+    const item = contents.find((c) => c.id === id);
+    setContents((prev) => prev.filter((c) => c.id !== id));
+    logActivity('Content Deleted', 'Educational Content', `Deleted ${item?.title || id}`);
+  };
+
+  const toggleContentPublish = (id: string) => {
+    setContents((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const next = !c.is_published;
+          logActivity('Content Publish Toggled', 'Educational Content', `${c.title} is now ${next ? 'Published' : 'Unpublished'}`);
+          return { ...c, is_published: next };
+        }
+        return c;
+      })
+    );
+  };
+
+  const toggleContentEnabled = (id: string) => {
+    setContents((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const next = !c.is_enabled;
+          logActivity('Content Enabled Toggled', 'Educational Content', `${c.title} is now ${next ? 'Enabled' : 'Disabled'}`);
+          return { ...c, is_enabled: next };
+        }
+        return c;
+      })
+    );
+  };
+
+  // Package operations
+  const addPackage = (pkg: Omit<PackageItem, 'id'>) => {
+    const id = `pkg_${Date.now()}`;
+    setPackages((prev) => [...prev, { ...pkg, id }]);
+    logActivity('Package Created', 'Package Management', `Created package ${pkg.name} (${pkg.code})`);
+  };
+
+  const updatePackage = (id: string, pkg: Partial<PackageItem>) => {
+    setPackages((prev) => prev.map((p) => (p.id === id ? { ...p, ...pkg } : p)));
+    logActivity('Package Updated', 'Package Management', `Updated package ${id}`);
+  };
+
+  const togglePackageStatus = (id: string) => {
+    setPackages((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const next = !p.isEnabled;
+          logActivity('Package Status Toggled', 'Package Management', `${p.name} is now ${next ? 'Active' : 'Disabled'}`);
+          return { ...p, isEnabled: next };
+        }
+        return p;
+      })
+    );
+  };
+
+  const updatePackageFeatureMatrix = (
+    packageId: string,
+    featureKey: keyof PackageItem['features'],
+    value: boolean
+  ) => {
+    setPackages((prev) =>
+      prev.map((p) => {
+        if (p.id === packageId) {
+          const updatedFeatures = { ...p.features, [featureKey]: value };
+          logActivity(
+            'Feature Matrix Updated',
+            'Package Features',
+            `Set ${String(featureKey)} to ${value ? 'ON' : 'OFF'} for ${p.name}`
+          );
+          return { ...p, features: updatedFeatures };
+        }
+        return p;
+      })
+    );
+  };
+
+  // Student operations
+  const addStudent = (student: Omit<Student, 'id' | 'createdAt' | 'lastLogin'>) => {
+    const id = `std_${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const newStudent: Student = {
+      ...student,
+      id,
+      lastLogin: 'Never',
+      createdAt: now,
+    };
+    setStudents((prev) => [newStudent, ...prev]);
+    logActivity('Student Registered', 'Student Management', `Added student ${student.name} (${student.email})`);
+  };
+
+  const updateStudent = (id: string, student: Partial<Student>) => {
+    setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, ...student } : s)));
+    logActivity('Student Updated', 'Student Management', `Modified student profile for ${id}`);
+  };
+
+  const toggleStudentAccountStatus = (id: string) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          const nextStatus: Student['accountStatus'] = s.accountStatus === 'active' ? 'disabled' : 'active';
+          logActivity('Student Status Changed', 'Student Management', `${s.name} account is now ${nextStatus}`);
+          return { ...s, accountStatus: nextStatus };
+        }
+        return s;
+      })
+    );
+  };
+
+  const assignStudentPackage = (
+    studentId: string,
+    packageId: string,
+    classId?: string,
+    validityDays = 365
+  ) => {
+    const pkg = packages.find((p) => p.id === packageId);
+    if (!pkg) return;
+
+    const purchaseDate = new Date().toISOString().split('T')[0];
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + validityDays);
+    const expiryDate = expDate.toISOString().split('T')[0];
+
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            packageId: pkg.id,
+            packageName: pkg.name,
+            packageStatus: 'active',
+            classId: classId || s.classId,
+            purchaseDate,
+            expiryDate,
+            paymentStatus: 'paid',
+            customPaperLimit: pkg.customPaperLimit,
+          };
+        }
+        return s;
+      })
+    );
+    logActivity(
+      'Package Assigned',
+      'Student Entitlement',
+      `Assigned ${pkg.name} to student ${studentId} until ${expiryDate}`
+    );
+  };
+
+  const extendStudentExpiry = (studentId: string, additionalDays: number) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          const currentExp = new Date(s.expiryDate);
+          const baseDate = isNaN(currentExp.getTime()) || currentExp < new Date() ? new Date() : currentExp;
+          baseDate.setDate(baseDate.getDate() + additionalDays);
+          const newExp = baseDate.toISOString().split('T')[0];
+          logActivity('Expiry Extended', 'Student Management', `Extended ${s.name} validity by ${additionalDays} days (New expiry: ${newExp})`);
+          return { ...s, expiryDate: newExp, packageStatus: 'active' };
+        }
+        return s;
+      })
+    );
+  };
+
+  const updateStudentOverrides = (studentId: string, overrides: StudentContentOverrides) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          logActivity('Access Overrides Modified', 'Student Access Control', `Updated custom content permissions for ${s.name}`);
+          return { ...s, accessOverrides: overrides };
+        }
+        return s;
+      })
+    );
+  };
+
+  const adjustCustomPaperLimit = (studentId: string, newLimit: number) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          logActivity('Custom Paper Limit Adjusted', 'Student Management', `Adjusted limit for ${s.name} to ${newLimit === -1 ? 'Unlimited' : newLimit}`);
+          return { ...s, customPaperLimit: newLimit };
+        }
+        return s;
+      })
+    );
+  };
+
+  const recordCustomPaperUsage = (studentId: string): boolean => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return false;
+    if (student.customPaperLimit !== -1 && student.customPaperCountUsed >= student.customPaperLimit) {
+      return false; // Limit reached
+    }
+    setStudents((prev) =>
+      prev.map((s) => (s.id === studentId ? { ...s, customPaperCountUsed: s.customPaperCountUsed + 1 } : s))
+    );
+    return true;
+  };
+
+  const deleteStudent = (id: string) => {
+    const st = students.find((s) => s.id === id);
+    setStudents((prev) => prev.filter((s) => s.id !== id));
+    logActivity('Student Removed', 'Student Management', `Deleted student record for ${st?.name || id}`);
+  };
+
+  // Payment operations
+  const addPayment = (payment: Omit<PaymentTransaction, 'id'>) => {
+    const id = `txn_${Date.now()}`;
+    setPayments((prev) => [{ ...payment, id }, ...prev]);
+    logActivity('Payment Recorded', 'Payment Management', `Transaction ${payment.orderId} for ₹${payment.amount} recorded.`);
+  };
+
+  const updatePaymentStatus = (id: string, status: PaymentTransaction['status']) => {
+    setPayments((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          logActivity('Payment Status Updated', 'Payment Management', `Order ${p.orderId} updated to ${status}`);
+          return { ...p, status };
+        }
+        return p;
+      })
+    );
+  };
+
+  const verifyAndActivatePayment = (paymentId: string) => {
+    const payment = payments.find((p) => p.id === paymentId);
+    if (!payment) return;
+
+    // Update payment record to successful
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + 365);
+    const expiryDateStr = expDate.toISOString().split('T')[0];
+
+    setPayments((prev) =>
+      prev.map((p) =>
+        p.id === paymentId
+          ? {
+              ...p,
+              status: 'successful',
+              packageActivationDate: now.split(' ')[0],
+              packageExpiryDate: expiryDateStr,
+            }
+          : p
+      )
+    );
+
+    // Automatically activate student package entitlement
+    assignStudentPackage(payment.studentId, payment.packageId, payment.classId, 365);
+
+    // Send confirmation notification
+    sendNotification({
+      title: 'Payment Verified & Package Activated',
+      message: `Your payment of ₹${payment.amount} for ${payment.packageName} has been verified. Full access is now unlocked!`,
+      targetType: 'student',
+      targetId: payment.studentId,
+      type: 'billing',
+    });
+
+    logActivity(
+      'Payment Verified & Entitlement Provisioned',
+      'Payment Management',
+      `Auto-provisioned ${payment.packageName} for student ${payment.studentName} (Order: ${payment.orderId})`
+    );
+  };
+
+  // Config & Settings
+  const updateDashboardConfig = (key: keyof DashboardFeatureConfig, value: boolean) => {
+    setDashboardConfig((prev) => {
+      const updated = { ...prev, [key]: value };
+      logActivity('Dashboard Config Updated', 'Dashboard Configuration', `Set feature ${key} to ${value ? 'ON' : 'OFF'}`);
+      return updated;
+    });
+  };
+
+  const updateGlobalSettings = (settings: Partial<GlobalWebsiteSettings>) => {
+    setGlobalSettings((prev) => {
+      const updated = { ...prev, ...settings };
+      logActivity('Global Website Settings Updated', 'Global Settings', 'Updated website metadata, branding or SEO config');
+      return updated;
+    });
+  };
+
+  const toggleMaintenanceMode = (
+    enabled: boolean,
+    message?: string,
+    title?: string,
+    expected?: string
+  ) => {
+    setGlobalSettings((prev) => {
+      const updated: GlobalWebsiteSettings = {
+        ...prev,
+        maintenanceMode: {
+          isEnabled: enabled,
+          title: title || prev.maintenanceMode.title,
+          message: message || prev.maintenanceMode.message,
+          expectedAvailability: expected || prev.maintenanceMode.expectedAvailability,
+        },
+      };
+      logActivity(
+        'Maintenance Mode Toggled',
+        'Website Security',
+        `Website maintenance mode is now ${enabled ? 'ACTIVE' : 'DEACTIVATED'}`
+      );
+      return updated;
+    });
+  };
+
+  // Announcements & Notifications
+  const addAnnouncement = (announcement: Omit<AnnouncementItem, 'id' | 'createdAt'>) => {
+    const id = `ann_${Date.now()}`;
+    const createdAt = new Date().toISOString().split('T')[0];
+    setAnnouncements((prev) => [{ ...announcement, id, createdAt }, ...prev]);
+    logActivity('Announcement Broadcast', 'Communication', `Published announcement: ${announcement.title}`);
+  };
+
+  const updateAnnouncement = (id: string, announcement: Partial<AnnouncementItem>) => {
+    setAnnouncements((prev) => prev.map((a) => (a.id === id ? { ...a, ...announcement } : a)));
+    logActivity('Announcement Updated', 'Communication', `Updated announcement ${id}`);
+  };
+
+  const deleteAnnouncement = (id: string) => {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    logActivity('Announcement Deleted', 'Communication', `Deleted announcement ${id}`);
+  };
+
+  const sendNotification = (notification: Omit<NotificationItem, 'id' | 'createdAt' | 'isRead'> & { isRead?: boolean }) => {
+    const id = `notif_${Date.now()}`;
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    setNotifications((prev) => [{ ...notification, id, createdAt, isRead: notification.isRead ?? false }, ...prev]);
+    logActivity('Notification Sent', 'Communication', `Sent notification to ${notification.targetType || 'user'}: ${notification.title}`);
+  };
+
+  // -------------------------------------------------------------
+  // CORE ACCESS CONTROL SERVICE (Requirements 8, 10, 11, 26, 30)
+  // -------------------------------------------------------------
+  const canUserAccessContent = useCallback(
+    (studentId: string, contentId: string): { allowed: boolean; reason?: string } => {
+      const content = contents.find((c) => c.id === contentId);
+      if (!content) {
+        return { allowed: false, reason: 'Content item does not exist.' };
+      }
+
+      // Rule 1: Content must be published and enabled
+      if (!content.is_published) {
+        return { allowed: false, reason: 'This content is unpublished.' };
+      }
+      if (!content.is_enabled) {
+        return { allowed: false, reason: 'This content has been temporarily disabled by administration.' };
+      }
+
+      // Public / Free content is accessible to all
+      if (content.access_type === 'public' || content.access_type === 'free') {
+        return { allowed: true };
+      }
+
+      // Find student record
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        return { allowed: false, reason: 'Authentication required to view this content.' };
+      }
+
+      // Check student account status
+      if (student.accountStatus !== 'active') {
+        return { allowed: false, reason: `Student account is ${student.accountStatus}. Please contact support.` };
+      }
+
+      // Check package validity & expiration
+      if (student.packageStatus !== 'active') {
+        return { allowed: false, reason: `Package is currently ${student.packageStatus}. Please renew to access.` };
+      }
+
+      const expiry = new Date(student.expiryDate);
+      if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+        return { allowed: false, reason: 'Your subscription package has expired on ' + student.expiryDate };
+      }
+
+      // Check Student-Specific Overrides (Requirement 11)
+      const overrides = student.accessOverrides;
+      if (overrides) {
+        // Explicitly disabled by admin
+        if (overrides.disabledContentIds?.includes(contentId)) {
+          return { allowed: false, reason: 'Access to this specific material has been disabled by administrator.' };
+        }
+        if (overrides.disabledChapterIds?.includes(content.chapter_id)) {
+          return { allowed: false, reason: 'Access to this chapter has been disabled for your profile by administrator.' };
+        }
+        if (overrides.disabledSubjectIds?.includes(content.subject_id)) {
+          return { allowed: false, reason: 'Access to this subject has been disabled for your profile by administrator.' };
+        }
+
+        // Explicitly granted extra access
+        if (overrides.extraAllowedContentIds?.includes(contentId)) {
+          return { allowed: true };
+        }
+        if (overrides.extraAllowedChapterIds?.includes(content.chapter_id)) {
+          return { allowed: true };
+        }
+        if (overrides.extraAllowedClassIds?.includes(content.class_id)) {
+          return { allowed: true };
+        }
+      }
+
+      // Strict Class Enforcement (Requirement 10)
+      // Student must only see content for their assigned class unless overridden
+      if (content.class_id !== student.classId) {
+        return {
+          allowed: false,
+          reason: `Content belongs to ${content.class_id.replace('_', ' ').toUpperCase()} while student is enrolled in ${student.classId.replace('_', ' ').toUpperCase()}.`,
+        };
+      }
+
+      // Check Package Assignment
+      if (content.access_type === 'package_restricted') {
+        if (!content.package_ids.includes(student.packageId)) {
+          return {
+            allowed: false,
+            reason: `This premium material requires an upgraded package (${content.package_ids.join(', ')}).`,
+          };
+        }
+      }
+
+      // Check Package Feature Matrix
+      const pkg = packages.find((p) => p.id === student.packageId);
+      if (pkg) {
+        if (content.content_type === 'practice_paper' && !pkg.features.practicePapers) {
+          return { allowed: false, reason: 'Practice papers are not included in your current package tier.' };
+        }
+        if (content.content_type === 'mcq' && !pkg.features.mcqs) {
+          return { allowed: false, reason: 'Interactive MCQs are not included in your package tier.' };
+        }
+      }
+
+      return { allowed: true };
+    },
+    [contents, students, packages]
+  );
+
+  const canStudentUseFeature = useCallback(
+    (studentId: string, featureKey: keyof DashboardFeatureConfig): { allowed: boolean; reason?: string } => {
+      // Global master switch
+      if (!dashboardConfig[featureKey]) {
+        return { allowed: false, reason: `Feature '${String(featureKey)}' is disabled platform-wide by admin.` };
+      }
+
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        return { allowed: false, reason: 'Authentication required.' };
+      }
+
+      if (student.accountStatus !== 'active') {
+        return { allowed: false, reason: `Account is ${student.accountStatus}.` };
+      }
+
+      if (student.packageStatus === 'expired') {
+        return { allowed: false, reason: 'Package has expired.' };
+      }
+
+      const pkg = packages.find((p) => p.id === student.packageId);
+      if (pkg) {
+        if (featureKey === 'practicePapers' && !pkg.features.practicePapers) return { allowed: false, reason: 'Not in package tier' };
+        if (featureKey === 'downloads' && !pkg.features.pdfDownload) return { allowed: false, reason: 'Downloads not allowed in package' };
+        if (featureKey === 'customPracticePaper' && !pkg.features.customPapers) return { allowed: false, reason: 'Custom paper generator not in package' };
+        if (featureKey === 'aiTutor' && !pkg.features.aiFeatures) return { allowed: false, reason: 'AI tutor not included in package' };
+      }
+
+      // Check individual override
+      if (student.accessOverrides) {
+        if (featureKey === 'downloads' && student.accessOverrides.downloadsDisabled) {
+          return { allowed: false, reason: 'Downloads disabled for your account by administrator.' };
+        }
+        if (featureKey === 'customPracticePaper' && student.accessOverrides.customPaperGenerationDisabled) {
+          return { allowed: false, reason: 'Custom paper generation disabled by administrator.' };
+        }
+      }
+
+      return { allowed: true };
+    },
+    [dashboardConfig, students, packages]
+  );
+
+  const canStudentDownloadPDF = useCallback(
+    (studentId: string, contentId: string): { allowed: boolean; reason?: string } => {
+      const accessCheck = canUserAccessContent(studentId, contentId);
+      if (!accessCheck.allowed) return accessCheck;
+
+      const student = students.find((s) => s.id === studentId);
+      if (student?.accessOverrides?.downloadsDisabled) {
+        return { allowed: false, reason: 'PDF downloads have been disabled for your account by administration.' };
+      }
+
+      const pkg = packages.find((p) => p.id === student?.packageId);
+      if (pkg && !pkg.features.pdfDownload) {
+        return { allowed: false, reason: 'PDF downloads are restricted on this package tier.' };
+      }
+
+      return { allowed: true };
+    },
+    [canUserAccessContent, students, packages]
+  );
+
+  const canStudentGenerateCustomPaper = useCallback(
+    (studentId: string): { allowed: boolean; remainingCount: number; reason?: string } => {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        return { allowed: false, remainingCount: 0, reason: 'Authentication required.' };
+      }
+
+      if (student.accountStatus !== 'active' || student.packageStatus !== 'active') {
+        return { allowed: false, remainingCount: 0, reason: 'Active subscription required.' };
+      }
+
+      if (student.accessOverrides?.customPaperGenerationDisabled) {
+        return { allowed: false, remainingCount: 0, reason: 'Custom paper generation has been disabled for this student.' };
+      }
+
+      if (student.customPaperLimit === -1) {
+        return { allowed: true, remainingCount: 999999 }; // Unlimited
+      }
+
+      const remaining = student.customPaperLimit - student.customPaperCountUsed;
+      if (remaining <= 0) {
+        return {
+          allowed: false,
+          remainingCount: 0,
+          reason: `You have exhausted your custom practice paper quota (${student.customPaperCountUsed}/${student.customPaperLimit}). Contact admin to extend.`,
+        };
+      }
+
+      return { allowed: true, remainingCount: remaining };
+    },
+    [students]
+  );
+
+  const resetAllDataToFactoryDefaults = () => {
+    setClasses(INITIAL_CLASSES);
+    setSubjects(INITIAL_SUBJECTS);
+    setChapters(INITIAL_CHAPTERS);
+    setContents(INITIAL_EDUCATIONAL_CONTENT);
+    setPackages(INITIAL_PACKAGES);
+    setStudents(INITIAL_STUDENTS);
+    setPayments(INITIAL_PAYMENTS);
+    setDashboardConfig(INITIAL_DASHBOARD_CONFIG);
+    setGlobalSettings(INITIAL_GLOBAL_SETTINGS);
+    setAnnouncements(INITIAL_ANNOUNCEMENTS);
+    setNotifications(INITIAL_NOTIFICATIONS);
+    setActivityLogs(INITIAL_ACTIVITY_LOGS);
+    localStorage.clear();
+    logActivity('System Reset', 'Administration', 'Factory reset restored all sample curriculum, students, and rules.');
+  };
+
+  return (
+    <AdminStoreContext.Provider
+      value={{
+        classes,
+        subjects,
+        chapters,
+        contents,
+        packages,
+        students,
+        payments,
+        dashboardConfig,
+        globalSettings,
+        announcements,
+        notifications,
+        activityLogs,
+
+        addClass,
+        updateClass,
+        toggleClassStatus,
+        reorderClasses,
+
+        addSubject,
+        updateSubject,
+        deleteSubject,
+        toggleSubjectStatus,
+
+        addChapter,
+        updateChapter,
+        deleteChapter,
+        toggleChapterStatus,
+
+        addContent,
+        updateContent,
+        deleteContent,
+        toggleContentPublish,
+        toggleContentEnabled,
+
+        addPackage,
+        updatePackage,
+        togglePackageStatus,
+        updatePackageFeatureMatrix,
+
+        addStudent,
+        updateStudent,
+        toggleStudentAccountStatus,
+        assignStudentPackage,
+        extendStudentExpiry,
+        updateStudentOverrides,
+        adjustCustomPaperLimit,
+        recordCustomPaperUsage,
+        deleteStudent,
+
+        addPayment,
+        updatePaymentStatus,
+        verifyAndActivatePayment,
+
+        updateDashboardConfig,
+        updateGlobalSettings,
+        toggleMaintenanceMode,
+
+        addAnnouncement,
+        updateAnnouncement,
+        deleteAnnouncement,
+        sendNotification,
+
+        canUserAccessContent,
+        canStudentUseFeature,
+        canStudentDownloadPDF,
+        canStudentGenerateCustomPaper,
+
+        resetAllDataToFactoryDefaults,
+      }}
+    >
+      {children}
+    </AdminStoreContext.Provider>
+  );
+};
+
+export const useAdminStore = () => {
+  const context = useContext(AdminStoreContext);
+  if (!context) {
+    throw new Error('useAdminStore must be used within an AdminStoreProvider');
+  }
+  return context;
+};
