@@ -84,6 +84,19 @@ export interface AcademicChapter {
   sortOrder: number;
 }
 
+export interface AcademicTopic {
+  id: string;
+  classId: string;
+  subjectId: string;
+  chapterId: string;
+  title: string;
+  description?: string;
+  sortOrder: number;
+  isEnabled: boolean;
+  maxPdfLimit?: number; // default 30
+  createdAt?: string;
+}
+
 export type ContentType =
   | 'notes'
   | 'practice_paper'
@@ -104,6 +117,8 @@ export interface EducationalContent {
   class_id: string;
   subject_id: string;
   chapter_id: string;
+  topic_id?: string;
+  topic_title?: string;
   content_type: ContentType;
   title: string;
   description: string;
@@ -160,12 +175,22 @@ export interface PackageItem {
   name: string;
   priceINR: number;
   priceUSD: number;
+  currency?: 'INR' | 'USD';
   validityDays: number;
   eligibleClassIds: string[];
   description: string;
   isEnabled: boolean;
-  practicePaperLimit: number;
-  customPaperLimit: number; // e.g. -1 for unlimited
+  practicePaperLimit: number; // e.g. per topic or total, -1 for unlimited
+  questionsPerPaper?: number; // e.g. 15, 20, 25
+  customPaperLimit: number; // Configurable custom paper request limit e.g. 15, 50, -1 for unlimited
+  customPracticeEnabled?: boolean; // toggle whether custom practice papers are allowed
+  pdfDownloadEnabled?: boolean; // whether PDF download is permitted
+  difficultyLevels?: DifficultyLevel[]; // ['basic', 'medium', 'hard', 'olympiad']
+  questionTypes?: string[]; // ['objective', 'subjective', 'competency_based', 'case_based', 'mixed']
+  competencyBasedQuestions?: boolean;
+  caseBasedQuestions?: boolean;
+  hasAnswerKey?: boolean;
+  hasSolutions?: boolean;
   features: PackageFeatureMatrix;
   targetAudience: string;
 }
@@ -272,6 +297,8 @@ export type AdminActiveSection =
   | 'content-classes'
   | 'content-subjects'
   | 'content-chapters'
+  | 'content-topics'
+  | 'content-material-upload'
   | 'content-practice-papers'
   | 'content-question-bank'
   | 'content-mcqs'
@@ -279,6 +306,7 @@ export type AdminActiveSection =
   | 'content-notes'
   | 'content-previous-papers'
   | 'content-pdfs'
+  | 'custom-requests'
   | 'packages-all'
   | 'packages-features'
   | 'packages-rules'
@@ -304,6 +332,14 @@ export type AdminActiveSection =
   | 'reports-students'
   | 'reports-packages'
   | 'reports-content'
+  | 'affiliates-applications'
+  | 'affiliates-approved'
+  | 'affiliates-rejected'
+  | 'affiliates-suspended'
+  | 'affiliates-sales'
+  | 'affiliates-commissions'
+  | 'affiliates-payouts'
+  | 'affiliates-settings'
   | 'admins-all'
   | 'admins-audit'
   | 'admin-users'

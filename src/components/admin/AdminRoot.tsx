@@ -19,6 +19,10 @@ import { WebsiteCMSView } from './views/WebsiteCMSView';
 import { AnnouncementsView } from './views/AnnouncementsView';
 import { ReportsAnalyticsView } from './views/ReportsAnalyticsView';
 import { AdminUsersView } from './views/AdminUsersView';
+import { AffiliateManagementView } from './views/AffiliateManagementView';
+import { TopicManagementView } from './views/TopicManagementView';
+import { MaterialUploadView } from './views/MaterialUploadView';
+import { CustomRequestsAdminView } from './views/CustomRequestsAdminView';
 
 interface AdminRootProps {
   onViewPublicSite: () => void;
@@ -39,6 +43,9 @@ export const AdminRoot: React.FC<AdminRootProps> = ({ onViewPublicSite }) => {
       case 'dashboard':
         return <AdminDashboardView onNavigate={(sec) => setActiveSection(sec)} />;
 
+      case 'custom-requests':
+        return <CustomRequestsAdminView />;
+
       // Students
       case 'students-all':
         return <StudentManagementView initialFilter="all" />;
@@ -56,6 +63,10 @@ export const AdminRoot: React.FC<AdminRootProps> = ({ onViewPublicSite }) => {
         return <SubjectManagementView />;
       case 'content-chapters':
         return <ChapterManagementView />;
+      case 'content-topics':
+        return <TopicManagementView />;
+      case 'content-material-upload':
+        return <MaterialUploadView />;
       case 'content-practice-papers':
         return <ContentManagementView initialTypeFilter="practice_paper" />;
       case 'content-question-bank':
@@ -88,6 +99,24 @@ export const AdminRoot: React.FC<AdminRootProps> = ({ onViewPublicSite }) => {
         return <PaymentManagementView initialStatusFilter="failed" />;
       case 'payments-refunds':
         return <PaymentManagementView initialStatusFilter="refunded" />;
+
+      // Affiliates & Referrals
+      case 'affiliates-applications':
+        return <AffiliateManagementView initialTab="applications" />;
+      case 'affiliates-approved':
+        return <AffiliateManagementView initialTab="approved" />;
+      case 'affiliates-rejected':
+        return <AffiliateManagementView initialTab="rejected" />;
+      case 'affiliates-suspended':
+        return <AffiliateManagementView initialTab="suspended" />;
+      case 'affiliates-sales':
+        return <AffiliateManagementView initialTab="sales" />;
+      case 'affiliates-commissions':
+        return <AffiliateManagementView initialTab="commissions" />;
+      case 'affiliates-payouts':
+        return <AffiliateManagementView initialTab="payouts" />;
+      case 'affiliates-settings':
+        return <AffiliateManagementView initialTab="settings" />;
 
       // Website CMS
       case 'website-home':

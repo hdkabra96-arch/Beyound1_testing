@@ -38,6 +38,9 @@ import {
   Menu,
   X,
   Search,
+  Gift,
+  Percent,
+  DollarSign,
   Sun,
   Moon,
   ExternalLink,
@@ -74,7 +77,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onViewPublicSite,
 }) => {
   const { currentAdmin, logout, switchAdminRole } = useAdminAuth();
-  const { globalSettings, students, payments, contents } = useAdminStore();
+  const { globalSettings, students, payments, contents, customRequests } = useAdminStore();
   const { effectiveTheme, toggleTheme } = useTheme();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -88,6 +91,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
   const expiredStudentsCount = students.filter((s) => s.packageStatus === 'expired').length;
+  const pendingRequestsCount = customRequests ? customRequests.filter((r) => r.status === 'submitted' || r.status === 'in_progress').length : 0;
 
   const navGroups: NavGroup[] = [
     {
@@ -96,6 +100,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: <LayoutDashboard className="w-4 h-4" />,
       items: [
         { id: 'dashboard', label: 'Dashboard Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
+        { id: 'custom-requests', label: 'Custom Paper Requests', icon: <Sliders className="w-4 h-4 text-pink-400" />, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : undefined },
       ],
     },
     {
@@ -117,6 +122,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { id: 'content-classes', label: 'Class Grades (1–8)', icon: <GraduationCap className="w-4 h-4" /> },
         { id: 'content-subjects', label: 'Subjects & Tracks', icon: <Layers className="w-4 h-4" /> },
         { id: 'content-chapters', label: 'Chapter Repository', icon: <FolderOpen className="w-4 h-4" /> },
+        { id: 'content-topics', label: 'Topic Management', icon: <Layers className="w-4 h-4 text-indigo-400" />, badge: 'Hierarchical' },
+        { id: 'content-material-upload', label: 'Material Upload (30 Limit)', icon: <FileText className="w-4 h-4 text-emerald-400" />, badge: 'Max 30' },
         { id: 'content-practice-papers', label: 'Practice Papers', icon: <FileText className="w-4 h-4" />, badge: 'Core' },
         { id: 'content-question-bank', label: 'Question Bank & Hints', icon: <HelpCircle className="w-4 h-4" /> },
         { id: 'content-mcqs', label: 'MCQs & Speed Quizzes', icon: <Zap className="w-4 h-4 text-amber-500" /> },
@@ -146,6 +153,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { id: 'payments-pending', label: 'Pending Verification', icon: <Clock className="w-4 h-4 text-amber-500" />, badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : undefined },
         { id: 'payments-failed', label: 'Failed / Cancelled', icon: <XCircle className="w-4 h-4 text-rose-500" /> },
         { id: 'payments-refunds', label: 'Refunds & Adjustments', icon: <RotateCcw className="w-4 h-4" /> },
+      ],
+    },
+    {
+      id: 'affiliates-group',
+      label: 'Affiliates & Referrals',
+      icon: <Gift className="w-4 h-4 text-amber-400" />,
+      items: [
+        { id: 'affiliates-applications', label: 'Affiliate Applications', icon: <Clock className="w-4 h-4 text-amber-500" /> },
+        { id: 'affiliates-approved', label: 'Approved Affiliates', icon: <UserCheck className="w-4 h-4 text-emerald-500" /> },
+        { id: 'affiliates-sales', label: 'Referral Sales Ledger', icon: <TrendingUp className="w-4 h-4 text-indigo-500" /> },
+        { id: 'affiliates-commissions', label: 'Commission Approval', icon: <Percent className="w-4 h-4 text-purple-500" /> },
+        { id: 'affiliates-payouts', label: 'Payout Settlements', icon: <DollarSign className="w-4 h-4 text-emerald-500" /> },
+        { id: 'affiliates-rejected', label: 'Rejected Applications', icon: <UserX className="w-4 h-4 text-rose-500" /> },
+        { id: 'affiliates-suspended', label: 'Suspended / Disabled', icon: <ShieldAlert className="w-4 h-4 text-amber-500" /> },
+        { id: 'affiliates-settings', label: 'Affiliate Rules & Rates', icon: <Settings className="w-4 h-4 text-indigo-400" /> },
       ],
     },
     {

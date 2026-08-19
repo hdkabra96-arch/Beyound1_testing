@@ -3,6 +3,7 @@ import {
   AcademicClass,
   AcademicSubject,
   AcademicChapter,
+  AcademicTopic,
   EducationalContent,
   PackageItem,
   Student,
@@ -14,10 +15,12 @@ import {
   AdminActivityLog,
   StudentContentOverrides,
 } from '../types/admin';
+import { WorksheetRequest } from '../types/student';
 import {
   INITIAL_CLASSES,
   INITIAL_SUBJECTS,
   INITIAL_CHAPTERS,
+  INITIAL_TOPICS,
   INITIAL_EDUCATIONAL_CONTENT,
   INITIAL_PACKAGES,
   INITIAL_STUDENTS,
@@ -27,6 +30,7 @@ import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_NOTIFICATIONS,
   INITIAL_ACTIVITY_LOGS,
+  INITIAL_WORKSHEET_REQUESTS,
 } from './admin-data';
 import { useAdminAuth } from './admin-auth-context';
 
@@ -35,10 +39,12 @@ interface AdminStoreType {
   classes: AcademicClass[];
   subjects: AcademicSubject[];
   chapters: AcademicChapter[];
+  topics: AcademicTopic[];
   contents: EducationalContent[];
   packages: PackageItem[];
   students: Student[];
   payments: PaymentTransaction[];
+  customRequests: WorksheetRequest[];
   dashboardConfig: DashboardFeatureConfig;
   globalSettings: GlobalWebsiteSettings;
   announcements: AnnouncementItem[];
@@ -63,12 +69,46 @@ interface AdminStoreType {
   deleteChapter: (id: string) => void;
   toggleChapterStatus: (id: string) => void;
 
-  // Content Actions
+  // Topic Actions (Requirement 2 & 4)
+  addTopic: (topic: Omit<AcademicTopic, 'id'>) => void;
+  updateTopic: (id: string, topic: Partial<AcademicTopic>) => void;
+  deleteTopic: (id: string) => void;
+  toggleTopicStatus: (id: string) => void;
+
+  // Content Actions (with 30 PDF per topic limit enforcement)
   addContent: (content: Omit<EducationalContent, 'id' | 'created_at' | 'updated_at'>) => void;
   updateContent: (id: string, content: Partial<EducationalContent>) => void;
   deleteContent: (id: string) => void;
   toggleContentPublish: (id: string) => void;
   toggleContentEnabled: (id: string) => void;
+  uploadPdfMaterial: (data: {
+    classId: string;
+    subjectId: string;
+    chapterId: string;
+    topicId: string;
+    title: string;
+    description?: string;
+    pdfUrl: string;
+    pdfFilename: string;
+    pdfFileSize?: string;
+    pdfPagesCount?: number;
+    sortOrder?: number;
+    isEnabled?: boolean;
+    isPublished?: boolean;
+  }) => { success: boolean; error?: string };
+
+  // Custom Practice Paper Request Management (Requirement 18 & 19)
+  updateCustomRequestStatus: (
+    requestId: string,
+    status: WorksheetRequest['status'],
+    adminFeedback?: string,
+    adminNotes?: string,
+    assignedStaff?: string,
+    readyPdfUrl?: string,
+    readyPdfFilename?: string
+  ) => void;
+  assignStaffToRequest: (requestId: string, staffName: string) => void;
+  addCustomRequestNote: (requestId: string, note: string) => void;
 
   // Package Actions
   addPackage: (pkg: Omit<PackageItem, 'id'>) => void;
@@ -119,10 +159,12 @@ const STORAGE_KEYS = {
   CLASSES: 'bc_admin_classes_v2',
   SUBJECTS: 'bc_admin_subjects_v2',
   CHAPTERS: 'bc_admin_chapters_v2',
+  TOPICS: 'bc_admin_topics_v2',
   CONTENTS: 'bc_admin_contents_v2',
   PACKAGES: 'bc_admin_packages_v2',
   STUDENTS: 'bc_admin_students_v2',
   PAYMENTS: 'bc_admin_payments_v2',
+  CUSTOM_REQUESTS: 'bc_admin_custom_requests_v2',
   DASHBOARD_CONFIG: 'bc_admin_dash_config_v2',
   GLOBAL_SETTINGS: 'bc_admin_global_settings_v2',
   ANNOUNCEMENTS: 'bc_admin_announcements_v2',
@@ -145,10 +187,12 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [classes, setClasses] = useState<AcademicClass[]>(() => loadStorage(STORAGE_KEYS.CLASSES, INITIAL_CLASSES));
   const [subjects, setSubjects] = useState<AcademicSubject[]>(() => loadStorage(STORAGE_KEYS.SUBJECTS, INITIAL_SUBJECTS));
   const [chapters, setChapters] = useState<AcademicChapter[]>(() => loadStorage(STORAGE_KEYS.CHAPTERS, INITIAL_CHAPTERS));
+  const [topics, setTopics] = useState<AcademicTopic[]>(() => loadStorage(STORAGE_KEYS.TOPICS, INITIAL_TOPICS));
   const [contents, setContents] = useState<EducationalContent[]>(() => loadStorage(STORAGE_KEYS.CONTENTS, INITIAL_EDUCATIONAL_CONTENT));
   const [packages, setPackages] = useState<PackageItem[]>(() => loadStorage(STORAGE_KEYS.PACKAGES, INITIAL_PACKAGES));
   const [students, setStudents] = useState<Student[]>(() => loadStorage(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS));
   const [payments, setPayments] = useState<PaymentTransaction[]>(() => loadStorage(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS));
+  const [customRequests, setCustomRequests] = useState<WorksheetRequest[]>(() => loadStorage(STORAGE_KEYS.CUSTOM_REQUESTS, INITIAL_WORKSHEET_REQUESTS));
   const [dashboardConfig, setDashboardConfig] = useState<DashboardFeatureConfig>(() => loadStorage(STORAGE_KEYS.DASHBOARD_CONFIG, INITIAL_DASHBOARD_CONFIG));
   const [globalSettings, setGlobalSettings] = useState<GlobalWebsiteSettings>(() => loadStorage(STORAGE_KEYS.GLOBAL_SETTINGS, INITIAL_GLOBAL_SETTINGS));
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => loadStorage(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS));
@@ -159,10 +203,12 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes)); }, [classes]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects)); }, [subjects]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.CHAPTERS, JSON.stringify(chapters)); }, [chapters]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.TOPICS, JSON.stringify(topics)); }, [topics]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.CONTENTS, JSON.stringify(contents)); }, [contents]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packages)); }, [packages]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students)); }, [students]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments)); }, [payments]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTOM_REQUESTS, JSON.stringify(customRequests)); }, [customRequests]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.DASHBOARD_CONFIG, JSON.stringify(dashboardConfig)); }, [dashboardConfig]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.GLOBAL_SETTINGS, JSON.stringify(globalSettings)); }, [globalSettings]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements)); }, [announcements]);
@@ -287,8 +333,55 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     );
   };
 
-  // Content operations
+  // Topic operations (Requirement 2 & 4)
+  const addTopic = (topic: Omit<AcademicTopic, 'id'>) => {
+    const id = `top_${Date.now()}`;
+    const newTopic: AcademicTopic = {
+      ...topic,
+      id,
+      maxPdfLimit: topic.maxPdfLimit || 30,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setTopics((prev) => [...prev, newTopic]);
+    logActivity('Topic Created', 'Curriculum Management', `Created Topic: ${topic.title}`);
+  };
+
+  const updateTopic = (id: string, topic: Partial<AcademicTopic>) => {
+    setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, ...topic } : t)));
+    logActivity('Topic Updated', 'Curriculum Management', `Updated Topic ${id}`);
+  };
+
+  const deleteTopic = (id: string) => {
+    const item = topics.find((t) => t.id === id);
+    setTopics((prev) => prev.filter((t) => t.id !== id));
+    logActivity('Topic Deleted', 'Curriculum Management', `Deleted Topic ${item?.title || id}`);
+  };
+
+  const toggleTopicStatus = (id: string) => {
+    setTopics((prev) =>
+      prev.map((t) => {
+        if (t.id === id) {
+          const next = !t.isEnabled;
+          logActivity('Topic Status Toggled', 'Curriculum Management', `${t.title} is now ${next ? 'Enabled' : 'Disabled'}`);
+          return { ...t, isEnabled: next };
+        }
+        return t;
+      })
+    );
+  };
+
+  // Content operations with 30 PDF Limit Enforcement (Requirement 4)
   const addContent = (content: Omit<EducationalContent, 'id' | 'created_at' | 'updated_at'>) => {
+    // 30 PDFs limit check per topic
+    if (content.topic_id && (content.content_type === 'pdf' || content.pdf_url || content.content_type === 'notes' || content.content_type === 'practice_paper')) {
+      const topicObj = topics.find((t) => t.id === content.topic_id);
+      const limit = topicObj?.maxPdfLimit || 30;
+      const count = contents.filter((c) => c.topic_id === content.topic_id && (c.content_type === 'pdf' || c.pdf_url || c.content_type === 'notes' || c.content_type === 'practice_paper')).length;
+      if (count >= limit) {
+        throw new Error(`This topic already contains the maximum of ${limit} PDF materials.`);
+      }
+    }
+
     const id = `cnt_${Date.now()}`;
     const now = new Date().toISOString().split('T')[0];
     const newContent: EducationalContent = {
@@ -299,6 +392,69 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     setContents((prev) => [newContent, ...prev]);
     logActivity('Content Created', 'Educational Content', `Created ${content.content_type.toUpperCase()}: ${content.title}`);
+  };
+
+  // Dedicated Material Upload with strict 30-PDF limit
+  const uploadPdfMaterial = (data: {
+    classId: string;
+    subjectId: string;
+    chapterId: string;
+    topicId: string;
+    title: string;
+    description?: string;
+    pdfUrl: string;
+    pdfFilename: string;
+    pdfFileSize?: string;
+    pdfPagesCount?: number;
+    sortOrder?: number;
+    isEnabled?: boolean;
+    isPublished?: boolean;
+  }): { success: boolean; error?: string } => {
+    const topicObj = topics.find((t) => t.id === data.topicId);
+    const limit = topicObj?.maxPdfLimit || 30;
+    const currentCount = contents.filter(
+      (c) => c.topic_id === data.topicId && (c.content_type === 'pdf' || c.pdf_url || c.content_type === 'notes' || c.content_type === 'practice_paper')
+    ).length;
+
+    if (currentCount >= limit) {
+      return {
+        success: false,
+        error: `This topic already contains the maximum of ${limit} PDF materials.`,
+      };
+    }
+
+    const id = `cnt_pdf_${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const newContent: EducationalContent = {
+      id,
+      class_id: data.classId,
+      subject_id: data.subjectId,
+      chapter_id: data.chapterId,
+      topic_id: data.topicId,
+      topic_title: topicObj?.title,
+      content_type: 'pdf',
+      title: data.title,
+      description: data.description || 'Uploaded educational reference PDF.',
+      difficulty: 'medium',
+      access_type: 'package_restricted',
+      package_ids: ['pkg_basic', 'pkg_pro', 'pkg_teacher', 'pkg_school'],
+      is_published: data.isPublished !== undefined ? data.isPublished : true,
+      is_enabled: data.isEnabled !== undefined ? data.isEnabled : true,
+      time_limit_minutes: 0,
+      total_marks: 0,
+      question_count: 0,
+      pdf_url: data.pdfUrl,
+      pdf_filename: data.pdfFilename,
+      pdf_file_size: data.pdfFileSize || '2.4 MB',
+      pdf_pages_count: data.pdfPagesCount || 3,
+      sort_order: data.sortOrder || currentCount + 1,
+      created_at: now,
+      updated_at: now,
+    };
+
+    setContents((prev) => [newContent, ...prev]);
+    logActivity('PDF Material Uploaded', 'Material Repository', `Uploaded PDF "${data.title}" to topic "${topicObj?.title || data.topicId}"`);
+    return { success: true };
   };
 
   const updateContent = (id: string, content: Partial<EducationalContent>) => {
@@ -338,6 +494,95 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         return c;
       })
+    );
+  };
+
+  // Custom Practice Paper Request Management (Requirement 18 & 19)
+  const updateCustomRequestStatus = (
+    requestId: string,
+    status: WorksheetRequest['status'],
+    adminFeedback?: string,
+    adminNotes?: string,
+    assignedStaff?: string,
+    readyPdfUrl?: string,
+    readyPdfFilename?: string
+  ) => {
+    const now = new Date().toISOString().split('T')[0];
+    let studentIdForNotif: string | null = null;
+    let requestTopic = '';
+
+    setCustomRequests((prev) =>
+      prev.map((req) => {
+        if (req.id === requestId) {
+          studentIdForNotif = req.studentId;
+          requestTopic = req.topic || req.chapterTitle || 'Custom Paper';
+          return {
+            ...req,
+            status,
+            adminFeedback: adminFeedback !== undefined ? adminFeedback : req.adminFeedback,
+            adminNotes: adminNotes !== undefined ? adminNotes : req.adminNotes,
+            assignedStaff: assignedStaff !== undefined ? assignedStaff : req.assignedStaff,
+            readyPdfUrl: readyPdfUrl !== undefined ? readyPdfUrl : req.readyPdfUrl,
+            readyPdfFilename: readyPdfFilename !== undefined ? readyPdfFilename : req.readyPdfFilename,
+            updatedDate: now,
+            completedDate: status === 'ready' || status === 'completed' ? now : req.completedDate,
+          };
+        }
+        return req;
+      })
+    );
+
+    // Sync to local storage for student context
+    try {
+      const currentStored = loadStorage<WorksheetRequest[]>('bc_student_worksheets_v2', []);
+      const updated = currentStored.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              status,
+              adminFeedback: adminFeedback !== undefined ? adminFeedback : r.adminFeedback,
+              adminNotes: adminNotes !== undefined ? adminNotes : r.adminNotes,
+              assignedStaff: assignedStaff !== undefined ? assignedStaff : r.assignedStaff,
+              readyPdfUrl: readyPdfUrl !== undefined ? readyPdfUrl : r.readyPdfUrl,
+              readyPdfFilename: readyPdfFilename !== undefined ? readyPdfFilename : r.readyPdfFilename,
+              updatedDate: now,
+              completedDate: status === 'ready' || status === 'completed' ? now : r.completedDate,
+            }
+          : r
+      );
+      localStorage.setItem('bc_student_worksheets_v2', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    logActivity(
+      'Custom Paper Status Updated',
+      'Worksheet Requests',
+      `Request ${requestId} status changed to ${status.toUpperCase()}`
+    );
+
+    // If marked ready, trigger student notification
+    if ((status === 'ready' || status === 'completed') && studentIdForNotif) {
+      sendNotification({
+        title: 'Custom Practice Paper Ready! 📄',
+        message: `Your requested custom practice paper for "${requestTopic}" is now prepared and ready for practice and download.`,
+        targetType: 'student',
+        targetId: studentIdForNotif,
+        type: 'success',
+      });
+    }
+  };
+
+  const assignStaffToRequest = (requestId: string, staffName: string) => {
+    setCustomRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, assignedStaff: staffName, updatedDate: new Date().toISOString().split('T')[0] } : req))
+    );
+    logActivity('Staff Assigned to Custom Request', 'Worksheet Requests', `Assigned ${staffName} to ${requestId}`);
+  };
+
+  const addCustomRequestNote = (requestId: string, note: string) => {
+    setCustomRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, adminNotes: note, updatedDate: new Date().toISOString().split('T')[0] } : req))
     );
   };
 
@@ -868,10 +1113,12 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         classes,
         subjects,
         chapters,
+        topics,
         contents,
         packages,
         students,
         payments,
+        customRequests,
         dashboardConfig,
         globalSettings,
         announcements,
@@ -893,11 +1140,21 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteChapter,
         toggleChapterStatus,
 
+        addTopic,
+        updateTopic,
+        deleteTopic,
+        toggleTopicStatus,
+
         addContent,
         updateContent,
         deleteContent,
         toggleContentPublish,
         toggleContentEnabled,
+        uploadPdfMaterial,
+
+        updateCustomRequestStatus,
+        assignStaffToRequest,
+        addCustomRequestNote,
 
         addPackage,
         updatePackage,

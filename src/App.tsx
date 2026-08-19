@@ -4,6 +4,7 @@ import { ToastProvider } from './components/ui/toast';
 import { AdminAuthProvider, useAdminAuth } from './services/admin-auth-context';
 import { AdminStoreProvider, useAdminStore } from './services/admin-store';
 import { StudentProvider, useStudent } from './services/student-context';
+import { AffiliateProvider, useAffiliate } from './services/affiliate-context';
 import { AdminRoot } from './components/admin/AdminRoot';
 import { StudentDashboardRoot } from './components/dashboard/StudentDashboardRoot';
 
@@ -25,7 +26,7 @@ import { AffiliatePage } from './pages/AffiliatePage';
 import { LegalPages } from './pages/LegalPages';
 
 import { PublicPage } from './types/public';
-import { Shield, Sparkles, LayoutGrid, AlertTriangle, LayoutDashboard, GraduationCap } from 'lucide-react';
+import { Shield, Sparkles, LayoutGrid, AlertTriangle, LayoutDashboard, GraduationCap, Gift } from 'lucide-react';
 
 function BeyondClassroomApp() {
   const [viewMode, setViewMode] = useState<'public' | 'admin' | 'dashboard'>('public');
@@ -174,8 +175,20 @@ function BeyondClassroomApp() {
       {/* Footer */}
       <PublicFooter onNavigate={setCurrentPage} onGradeSelect={setSelectedGrade} />
 
-      {/* Floating Mode Switcher (Student Dashboard & Admin Portal) */}
+      {/* Floating Mode Switcher (Student Dashboard, Admin Portal & Affiliate Portal) */}
       <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+        <button
+          onClick={() => {
+            setCurrentPage('affiliate');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-amber-500/90 hover:bg-amber-500 border border-amber-400/50 text-slate-950 text-xs font-black shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer group"
+          title="Open Affiliate & Partner Portal"
+        >
+          <Gift className="w-3.5 h-3.5 text-slate-950" />
+          <span>Affiliate Hub</span>
+        </button>
+
         <button
           onClick={() => setViewMode('dashboard')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-indigo-600/95 hover:bg-indigo-600 border border-indigo-400/50 text-white text-xs font-bold shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer group"
@@ -213,9 +226,11 @@ export default function App() {
       <AdminAuthProvider>
         <AdminStoreProvider>
           <StudentProvider>
-            <ToastProvider>
-              <BeyondClassroomApp />
-            </ToastProvider>
+            <AffiliateProvider>
+              <ToastProvider>
+                <BeyondClassroomApp />
+              </ToastProvider>
+            </AffiliateProvider>
           </StudentProvider>
         </AdminStoreProvider>
       </AdminAuthProvider>

@@ -32,11 +32,21 @@ export type WorksheetRequestStatus =
   | 'approved'
   | 'in_progress'
   | 'ready'
+  | 'completed'
   | 'rejected'
-  | 'completed';
+  | 'cancelled';
+
+export interface StudentReferenceFile {
+  id: string;
+  name: string;
+  size: string;
+  type: 'pdf' | 'jpg' | 'jpeg' | 'png' | 'image';
+  url: string;
+  uploadedAt: string;
+}
 
 export interface WorksheetRequest {
-  id: string;
+  id: string; // BC-XXXXXX
   studentId: string;
   studentName: string;
   studentEmail: string;
@@ -44,18 +54,23 @@ export interface WorksheetRequest {
   className: string;
   subjectId: string;
   subjectName: string;
-  chapterId: string;
-  chapterTitle: string;
-  topic: string;
-  difficulty: DifficultyLevel;
-  numberOfQuestions: number;
-  marks: number;
-  questionType: 'objective' | 'subjective' | 'competency_based' | 'case_based' | 'mixed';
+  chapterId?: string;
+  chapterTitle?: string;
+  topicId?: string | null; // Optional/nullable
+  topic?: string; // Optional! If blank, "Topic: Not specified"
+  difficulty: DifficultyLevel; // 'basic' | 'medium' | 'hard' | 'olympiad'
+  totalMarks: 40 | 60 | 80 | number; // Strictly 40, 60, 80 Marks
+  questionType?: 'objective' | 'subjective' | 'competency_based' | 'case_based' | 'mixed';
   additionalRequirements?: string;
+  referenceFiles?: StudentReferenceFile[];
   status: WorksheetRequestStatus;
+  expectedDelivery?: string; // "Within 48 Hours"
   adminFeedback?: string;
+  adminNotes?: string;
+  assignedStaff?: string;
   readyContentId?: string;
   readyPdfUrl?: string;
+  readyPdfFilename?: string;
   requestedDate: string;
   updatedDate: string;
   completedDate?: string;

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStudent } from '../../../services/student-context';
 import { useAdminStore } from '../../../services/admin-store';
+import { useAffiliate } from '../../../services/affiliate-context';
 import {
   CreditCard,
   QrCode,
@@ -14,6 +15,9 @@ import {
   Building2,
   Smartphone,
   Check,
+  Gift,
+  Tag,
+  Percent,
 } from 'lucide-react';
 
 interface RenewalCheckoutModalProps {
@@ -29,6 +33,12 @@ export const RenewalCheckoutModal: React.FC<RenewalCheckoutModalProps> = ({
 }) => {
   const { currentStudent, checkoutAndActivatePackage } = useStudent();
   const { packages, classes } = useAdminStore();
+  const {
+    activeAttributedCode,
+    validateReferralCode,
+    recordReferralSaleOnPayment,
+    setManualReferralCode,
+  } = useAffiliate();
 
   const [selectedPackageId, setSelectedPackageId] = useState(initialPackageId || currentStudent?.packageId || 'pkg_pro');
   const [selectedClassId, setSelectedClassId] = useState(currentStudent?.classId || 'class_5');
@@ -39,8 +49,60 @@ export const RenewalCheckoutModal: React.FC<RenewalCheckoutModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [txnDetails, setTxnDetails] = useState<{ transactionId: string; invoiceNumber: string } | null>(null);
 
+  // Referral code state
+  const [referralCodeInput, setReferralCodeInput] = useState(activeAttributedCode || '');
+  const [appliedReferralCode, setAppliedReferralCode] = useState<string | null>(activeAttributedCode || null);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [referralSuccessMsg, setReferralSuccessMsg] = useState<string | null>(null);
+
   const selectedPkg = packages.find((p) => p.id === selectedPackageId) || packages[1];
   const selectedClass = classes.find((c) => c.id === selectedClassId) || classes[1];
+
+  // Dynamic calculation
+  const referralValidation = appliedReferralCode
+    ? validateReferralCode(appliedReferralCode, selectedPkg.priceINR, selectedPkg.id, currentStudent?.email)
+    : null;
+
+  const finalPayable = referralValidation && referralValidation.valid
+    ? referralValidation.finalAmount
+    : selectedPkg.priceINR;
+
+  const discountAmount = referralValidation && referralValidation.valid
+    ? referralValidation.discountAmount
+    : 0;
+
+  const handleApplyReferral = () => {
+    setReferralError(null);
+    setReferralSuccessMsg(null);
+
+    if (!referralCodeInput.trim()) {
+      setAppliedReferralCode(null);
+      return;
+    }
+
+    const res = validateReferralCode(
+      referralCodeInput.trim(),
+      selectedPkg.priceINR,
+      selectedPkg.id,
+      currentStudent?.email
+    );
+
+    if (res.valid) {
+      setAppliedReferralCode(res.code);
+      setManualReferralCode(res.code);
+      setReferralSuccessMsg(`✓ Code "${res.code}" applied! You get ${res.discountPercentage}% off (₹${res.discountAmount.toFixed(2)} discount).`);
+    } else {
+      setAppliedReferralCode(null);
+      setReferralError(res.message);
+    }
+  };
+
+  const handleRemoveReferral = () => {
+    setAppliedReferralCode(null);
+    setReferralCodeInput('');
+    setReferralError(null);
+    setReferralSuccessMsg(null);
+  };
 
   const handlePayNow = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,8 +123,25 @@ export const RenewalCheckoutModal: React.FC<RenewalCheckoutModalProps> = ({
         selectedPackageId,
         selectedClassId,
         methodName,
-        selectedPkg.priceINR
+        finalPayable
       );
+
+      // Record referral sale idempotently for affiliate
+      if (appliedReferralCode && currentStudent) {
+        recordReferralSaleOnPayment({
+          studentId: currentStudent.id,
+          studentName: currentStudent.name,
+          studentEmail: currentStudent.email,
+          packageId: selectedPkg.id,
+          packageName: selectedPkg.name,
+          classId: selectedClass.id,
+          className: selectedClass.name,
+          originalPrice: selectedPkg.priceINR,
+          paidAmount: finalPayable,
+          purchaseId: result.transactionId,
+          referralCode: appliedReferralCode,
+        });
+      }
 
       setTxnDetails(result);
       setIsSuccess(true);
@@ -227,13 +306,85 @@ export const RenewalCheckoutModal: React.FC<RenewalCheckoutModalProps> = ({
               )}
             </div>
 
+            {/* Referral Code Application */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800">
+              <label className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Have a Partner / Referral Code?</span>
+                </span>
+                {appliedReferralCode && (
+                  <span className="text-[10px] text-emerald-400 font-bold">✓ CODE APPLIED</span>
+                )}
+              </label>
+
+              {!appliedReferralCode ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter referral code (e.g. BC-HARDIK10)"
+                    value={referralCodeInput}
+                    onChange={(e) => setReferralCodeInput(e.target.value.toUpperCase())}
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white uppercase placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyReferral}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-all cursor-pointer shadow-sm"
+                  >
+                    Apply
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-950/30 border border-emerald-800/50">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <span className="font-mono font-black text-xs text-white">{appliedReferralCode}</span>
+                      <span className="text-[10px] text-emerald-300 block font-semibold">
+                        {referralValidation?.discountPercentage}% Discount Applied
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveReferral}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+
+              {referralError && (
+                <p className="text-[11px] text-rose-400 font-medium">{referralError}</p>
+              )}
+              {referralSuccessMsg && (
+                <p className="text-[11px] text-emerald-400 font-medium">{referralSuccessMsg}</p>
+              )}
+            </div>
+
             {/* Price Breakdown Banner */}
-            <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-900/60 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Amount Payable</span>
-                <span className="text-xs text-indigo-300 font-medium">Includes 365 Days Academic Pass + GST</span>
+            <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-900/60 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Original Package Price:</span>
+                <span className="font-bold text-slate-300">₹{selectedPkg.priceINR.toLocaleString()}</span>
               </div>
-              <span className="text-xl font-black text-amber-400">₹{selectedPkg.priceINR.toLocaleString()}</span>
+
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-400">
+                  <span>Referral Partner Discount:</span>
+                  <span className="font-bold">-₹{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="border-t border-indigo-800/40 pt-2 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Final Amount Payable</span>
+                  <span className="text-[11px] text-indigo-300">Includes 365 Days Academic Pass + GST</span>
+                </div>
+                <span className="text-xl font-black text-amber-400">₹{finalPayable.toLocaleString()}</span>
+              </div>
             </div>
 
             {/* Submit CTA */}
@@ -247,7 +398,7 @@ export const RenewalCheckoutModal: React.FC<RenewalCheckoutModalProps> = ({
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Authorize & Activate ₹{selectedPkg.priceINR.toLocaleString()}</span>
+                  <span>Authorize & Activate ₹{finalPayable.toLocaleString()}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

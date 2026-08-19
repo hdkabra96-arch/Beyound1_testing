@@ -187,7 +187,7 @@ export const StudentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return 'normal';
   }, [isExpired, daysRemaining]);
 
-  // Worksheet submission (Requirement 13)
+  // Worksheet submission (Requirement 13 & Custom Paper Flow)
   const submitWorksheetRequest = useCallback(
     (req: Omit<WorksheetRequest, 'id' | 'studentId' | 'studentName' | 'studentEmail' | 'className' | 'subjectName' | 'chapterTitle' | 'status' | 'requestedDate' | 'updatedDate'>) => {
       if (!currentStudent) return;
@@ -197,15 +197,22 @@ export const StudentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const chapterObj = chapters.find((c) => c.id === req.chapterId);
       const now = new Date().toISOString().split('T')[0];
 
+      // Unique 6-digit BC ID format (e.g. BC-849204)
+      const randomDigits = Math.floor(100000 + Math.random() * 900000);
+      const bcId = `BC-${randomDigits}`;
+
       const newRequest: WorksheetRequest = {
         ...req,
-        id: `req_${Date.now()}`,
+        id: bcId,
         studentId: currentStudent.id,
         studentName: currentStudent.name,
         studentEmail: currentStudent.email,
-        className: classObj?.name || 'Class ' + req.classId.replace('class_', ''),
+        className: classObj?.name || 'Class ' + (req.classId ? req.classId.replace('class_', '') : '5'),
         subjectName: subjectObj?.name || 'Core Mathematics',
-        chapterTitle: chapterObj?.title || 'Chapter Topic',
+        chapterTitle: chapterObj?.title || 'Comprehensive Syllabus',
+        topic: req.topic && req.topic.trim() ? req.topic.trim() : undefined,
+        totalMarks: req.totalMarks || 40,
+        expectedDelivery: 'Within 48 Hours',
         status: 'submitted',
         requestedDate: now,
         updatedDate: now,
@@ -213,10 +220,18 @@ export const StudentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setWorksheetRequests((prev) => [newRequest, ...prev]);
 
+      // Sync to admin custom requests storage
+      try {
+        const adminStored = loadStorage<WorksheetRequest[]>('bc_admin_custom_requests_v2', []);
+        localStorage.setItem('bc_admin_custom_requests_v2', JSON.stringify([newRequest, ...adminStored]));
+      } catch {
+        // ignore
+      }
+
       // Trigger student notification
       sendNotification({
-        title: 'Worksheet Request Received',
-        message: `Your custom request for "${req.topic}" has been submitted to the academic council.`,
+        title: 'Custom Practice Paper Request Received 📄',
+        message: `Your request (${bcId}) for "${newRequest.topic || newRequest.chapterTitle}" has been received. Our faculty will deliver your paper within 48 hours.`,
         targetType: 'student',
         targetId: currentStudent.id,
         type: 'academic',

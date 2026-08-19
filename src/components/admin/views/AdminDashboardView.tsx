@@ -48,6 +48,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     classes,
     subjects,
     chapters,
+    topics,
+    customRequests,
     packages,
     activityLogs,
   } = useAdminStore();
@@ -69,11 +71,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const activePackagesCount = packages.filter((p) => p.isEnabled).length;
   const expiredPackagesCount = students.filter((s) => s.packageStatus === 'expired').length;
   const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
+  const pendingRequestsCount = customRequests ? customRequests.filter((r) => r.status === 'submitted' || r.status === 'in_progress').length : 0;
 
-  const totalPracticePapers = contents.filter((c) => c.content_type === 'practice_paper').length;
+  const totalPracticePapers = contents.filter((c) => c.content_type === 'practice_paper' || c.content_type === 'pdf').length;
   const totalClasses = classes.filter((c) => c.isEnabled).length;
   const totalSubjects = subjects.filter((s) => s.isEnabled).length;
   const totalChapters = chapters.filter((ch) => ch.isEnabled).length;
+  const totalTopics = (topics || []).filter((t) => t.isEnabled).length;
 
   // Chart Data
   const revenueMonthlyData = [
@@ -121,18 +125,25 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => onNavigate('students-all')}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+            onClick={() => onNavigate('content-material-upload')}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white text-xs font-bold shadow-md shadow-emerald-600/30 flex items-center gap-1.5 cursor-pointer"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Manage Students</span>
+            <FileText className="w-4 h-4" />
+            <span>Upload Material (Max 30)</span>
           </button>
           <button
-            onClick={() => onNavigate('content-practice-papers')}
+            onClick={() => onNavigate('custom-requests')}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:opacity-95 text-white text-xs font-bold shadow-md shadow-pink-600/30 flex items-center gap-1.5 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Custom Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}</span>
+          </button>
+          <button
+            onClick={() => onNavigate('students-all')}
             className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center gap-1.5 cursor-pointer"
           >
-            <FileText className="w-4 h-4 text-indigo-400" />
-            <span>New Practice Paper</span>
+            <UserPlus className="w-4 h-4 text-indigo-400" />
+            <span>Students ({totalStudents})</span>
           </button>
         </div>
       </div>
