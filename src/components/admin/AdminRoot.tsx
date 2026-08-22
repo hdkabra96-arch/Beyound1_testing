@@ -23,6 +23,8 @@ import { AffiliateManagementView } from './views/AffiliateManagementView';
 import { TopicManagementView } from './views/TopicManagementView';
 import { MaterialUploadView } from './views/MaterialUploadView';
 import { CustomRequestsAdminView } from './views/CustomRequestsAdminView';
+import { PackageMaterialUploadWizard } from './materials/PackageMaterialUploadWizard';
+import { ManageMaterialsView } from './views/ManageMaterialsView';
 
 interface AdminRootProps {
   onViewPublicSite: () => void;
@@ -66,7 +68,17 @@ export const AdminRoot: React.FC<AdminRootProps> = ({ onViewPublicSite }) => {
       case 'content-topics':
         return <TopicManagementView />;
       case 'content-material-upload':
-        return <MaterialUploadView />;
+        return (
+          <PackageMaterialUploadWizard
+            onNavigateToManage={() => setActiveSection('content-materials-manage')}
+          />
+        );
+      case 'content-materials-manage':
+        return (
+          <ManageMaterialsView
+            onNavigateToUpload={() => setActiveSection('content-material-upload')}
+          />
+        );
       case 'content-practice-papers':
         return <ContentManagementView initialTypeFilter="practice_paper" />;
       case 'content-question-bank':

@@ -43,10 +43,12 @@ import {
   DollarSign,
   Sun,
   Moon,
-  ExternalLink,
-  Sparkles,
-  AlertTriangle,
+  UploadCloud,
   FolderOpen,
+  Crown,
+  Sparkles,
+  ExternalLink,
+  AlertTriangle,
   Eye,
 } from 'lucide-react';
 
@@ -77,7 +79,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onViewPublicSite,
 }) => {
   const { currentAdmin, logout, switchAdminRole } = useAdminAuth();
-  const { globalSettings, students, payments, contents, customRequests } = useAdminStore();
+  const { globalSettings, students, payments, contents, customRequests, packageMaterials } = useAdminStore();
   const { effectiveTheme, toggleTheme } = useTheme();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -92,6 +94,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
   const expiredStudentsCount = students.filter((s) => s.packageStatus === 'expired').length;
   const pendingRequestsCount = customRequests ? customRequests.filter((r) => r.status === 'submitted' || r.status === 'in_progress').length : 0;
+  const packageMaterialsCount = packageMaterials ? packageMaterials.length : 0;
 
   const navGroups: NavGroup[] = [
     {
@@ -123,7 +126,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { id: 'content-subjects', label: 'Subjects & Tracks', icon: <Layers className="w-4 h-4" /> },
         { id: 'content-chapters', label: 'Chapter Repository', icon: <FolderOpen className="w-4 h-4" /> },
         { id: 'content-topics', label: 'Topic Management', icon: <Layers className="w-4 h-4 text-indigo-400" />, badge: 'Hierarchical' },
-        { id: 'content-material-upload', label: 'Material Upload (30 Limit)', icon: <FileText className="w-4 h-4 text-emerald-400" />, badge: 'Max 30' },
+        { id: 'content-material-upload', label: 'Package Material Upload', icon: <UploadCloud className="w-4 h-4 text-blue-500" />, badge: 'Wizard' },
+        { id: 'content-materials-manage', label: 'Manage Materials', icon: <FolderOpen className="w-4 h-4 text-emerald-500" />, badge: packageMaterialsCount > 0 ? `${packageMaterialsCount}` : undefined },
         { id: 'content-practice-papers', label: 'Practice Papers', icon: <FileText className="w-4 h-4" />, badge: 'Core' },
         { id: 'content-question-bank', label: 'Question Bank & Hints', icon: <HelpCircle className="w-4 h-4" /> },
         { id: 'content-mcqs', label: 'MCQs & Speed Quizzes', icon: <Zap className="w-4 h-4 text-amber-500" /> },

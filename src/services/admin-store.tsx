@@ -14,6 +14,9 @@ import {
   NotificationItem,
   AdminActivityLog,
   StudentContentOverrides,
+  PackageMaterial,
+  PackageType,
+  MaterialStatus,
 } from '../types/admin';
 import { WorksheetRequest } from '../types/student';
 import {
@@ -31,6 +34,7 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_ACTIVITY_LOGS,
   INITIAL_WORKSHEET_REQUESTS,
+  INITIAL_PACKAGE_MATERIALS,
 } from './admin-data';
 import { useAdminAuth } from './admin-auth-context';
 
@@ -50,6 +54,16 @@ interface AdminStoreType {
   announcements: AnnouncementItem[];
   notifications: NotificationItem[];
   activityLogs: AdminActivityLog[];
+  packageMaterials: PackageMaterial[];
+
+  // Package-Based Material Actions
+  addPackageMaterial: (material: Omit<PackageMaterial, 'id' | 'created_at' | 'updated_at'>) => PackageMaterial;
+  updatePackageMaterial: (id: string, material: Partial<PackageMaterial>) => void;
+  changeMaterialPackage: (id: string, newPackageType: PackageType, updatedPayload: Partial<PackageMaterial>) => void;
+  duplicatePackageMaterial: (id: string) => PackageMaterial;
+  replaceMaterialFile: (id: string, fileData: { file_url: string; file_name: string; file_size: string; file_type: string }) => void;
+  deletePackageMaterial: (id: string) => void;
+  toggleMaterialStatus: (id: string, status: MaterialStatus) => void;
 
   // Class Actions
   addClass: (cls: Omit<AcademicClass, 'id'>) => void;
@@ -170,6 +184,7 @@ const STORAGE_KEYS = {
   ANNOUNCEMENTS: 'bc_admin_announcements_v2',
   NOTIFICATIONS: 'bc_admin_notifications_v2',
   ACTIVITY_LOGS: 'bc_admin_activity_logs_v2',
+  PACKAGE_MATERIALS: 'bc_admin_package_materials_v2',
 };
 
 function loadStorage<T>(key: string, defaultValue: T): T {
@@ -198,6 +213,7 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => loadStorage(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadStorage(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS));
   const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(() => loadStorage(STORAGE_KEYS.ACTIVITY_LOGS, INITIAL_ACTIVITY_LOGS));
+  const [packageMaterials, setPackageMaterials] = useState<PackageMaterial[]>(() => loadStorage(STORAGE_KEYS.PACKAGE_MATERIALS, INITIAL_PACKAGE_MATERIALS));
 
   // Persistence hooks
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes)); }, [classes]);
@@ -214,6 +230,7 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements)); }, [announcements]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(activityLogs)); }, [activityLogs]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PACKAGE_MATERIALS, JSON.stringify(packageMaterials)); }, [packageMaterials]);
 
   // Logging helper
   const logActivity = useCallback((action: string, module: string, details: string) => {
@@ -584,6 +601,127 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCustomRequests((prev) =>
       prev.map((req) => (req.id === requestId ? { ...req, adminNotes: note, updatedDate: new Date().toISOString().split('T')[0] } : req))
     );
+  };
+
+  // Package-Based Material Operations
+  const addPackageMaterial = (
+    material: Omit<PackageMaterial, 'id' | 'created_at' | 'updated_at'>
+  ): PackageMaterial => {
+    const id = `mat_${material.package_type}_${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const newMaterial: PackageMaterial = {
+      ...material,
+      id,
+      created_at: now,
+      updated_at: now,
+      created_by: currentAdmin?.name || 'Administrator',
+    };
+    setPackageMaterials((prev) => [newMaterial, ...prev]);
+    logActivity(
+      'Material Uploaded',
+      'Material Management',
+      `Uploaded [${material.package_type.toUpperCase()}] "${material.title}" (${material.file_name})`
+    );
+    return newMaterial;
+  };
+
+  const updatePackageMaterial = (id: string, material: Partial<PackageMaterial>) => {
+    const now = new Date().toISOString().split('T')[0];
+    setPackageMaterials((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const updated = { ...m, ...material, updated_at: now };
+          return updated;
+        }
+        return m;
+      })
+    );
+    logActivity('Material Updated', 'Material Management', `Updated material details for ${id}`);
+  };
+
+  const changeMaterialPackage = (
+    id: string,
+    newPackageType: PackageType,
+    updatedPayload: Partial<PackageMaterial>
+  ) => {
+    const now = new Date().toISOString().split('T')[0];
+    setPackageMaterials((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const updated: PackageMaterial = {
+            ...m,
+            ...updatedPayload,
+            package_type: newPackageType,
+            updated_at: now,
+          };
+          // Clean up conflicting package-specific fields if transitioning between distinct types
+          if (newPackageType === 'basic') {
+            delete updated.teacher_data;
+            delete updated.school_data;
+          } else if (newPackageType === 'pro') {
+            delete updated.teacher_data;
+            delete updated.school_data;
+          } else if (newPackageType === 'teachers') {
+            delete updated.school_data;
+          } else if (newPackageType === 'school') {
+            delete updated.teacher_data;
+          }
+          return updated;
+        }
+        return m;
+      })
+    );
+    logActivity(
+      'Material Package Migrated',
+      'Material Management',
+      `Migrated material ${id} to ${newPackageType.toUpperCase()} package`
+    );
+  };
+
+  const duplicatePackageMaterial = (id: string): PackageMaterial => {
+    const existing = packageMaterials.find((m) => m.id === id);
+    if (!existing) {
+      throw new Error(`Material with id ${id} not found.`);
+    }
+    const clonedId = `mat_${existing.package_type}_${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const duplicated: PackageMaterial = {
+      ...JSON.parse(JSON.stringify(existing)),
+      id: clonedId,
+      title: `${existing.title} (Copy)`,
+      status: 'draft',
+      created_at: now,
+      updated_at: now,
+      created_by: currentAdmin?.name || 'Administrator',
+    };
+    setPackageMaterials((prev) => [duplicated, ...prev]);
+    logActivity('Material Duplicated', 'Material Management', `Duplicated ${existing.title} -> ${duplicated.title}`);
+    return duplicated;
+  };
+
+  const replaceMaterialFile = (
+    id: string,
+    fileData: { file_url: string; file_name: string; file_size: string; file_type: string }
+  ) => {
+    const now = new Date().toISOString().split('T')[0];
+    setPackageMaterials((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, ...fileData, updated_at: now } : m))
+    );
+    logActivity('Material File Replaced', 'Material Management', `Replaced physical file for ${id} with ${fileData.file_name}`);
+  };
+
+  const deletePackageMaterial = (id: string) => {
+    const target = packageMaterials.find((m) => m.id === id);
+    setPackageMaterials((prev) => prev.filter((m) => m.id !== id));
+    logActivity('Material Deleted', 'Material Management', `Deleted material ${target?.title || id}`);
+  };
+
+  const toggleMaterialStatus = (id: string, status: MaterialStatus) => {
+    const now = new Date().toISOString().split('T')[0];
+    setPackageMaterials((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status, updated_at: now } : m))
+    );
+    logActivity('Material Status Changed', 'Material Management', `Set status to ${status.toUpperCase()} for ${id}`);
   };
 
   // Package operations
@@ -1094,6 +1232,7 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setClasses(INITIAL_CLASSES);
     setSubjects(INITIAL_SUBJECTS);
     setChapters(INITIAL_CHAPTERS);
+    setTopics(INITIAL_TOPICS);
     setContents(INITIAL_EDUCATIONAL_CONTENT);
     setPackages(INITIAL_PACKAGES);
     setStudents(INITIAL_STUDENTS);
@@ -1103,8 +1242,9 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAnnouncements(INITIAL_ANNOUNCEMENTS);
     setNotifications(INITIAL_NOTIFICATIONS);
     setActivityLogs(INITIAL_ACTIVITY_LOGS);
+    setPackageMaterials(INITIAL_PACKAGE_MATERIALS);
     localStorage.clear();
-    logActivity('System Reset', 'Administration', 'Factory reset restored all sample curriculum, students, and rules.');
+    logActivity('System Reset', 'Administration', 'Factory reset restored all sample curriculum, students, packages, and materials.');
   };
 
   return (
@@ -1124,6 +1264,15 @@ export const AdminStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         announcements,
         notifications,
         activityLogs,
+        packageMaterials,
+
+        addPackageMaterial,
+        updatePackageMaterial,
+        changeMaterialPackage,
+        duplicatePackageMaterial,
+        replaceMaterialFile,
+        deletePackageMaterial,
+        toggleMaterialStatus,
 
         addClass,
         updateClass,

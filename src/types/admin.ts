@@ -97,6 +97,138 @@ export interface AcademicTopic {
   createdAt?: string;
 }
 
+export type PackageType = 'basic' | 'pro' | 'teachers' | 'school';
+
+export type MaterialType =
+  | 'Chapter PDF'
+  | 'Notes'
+  | 'NCERT Solution'
+  | 'Question Bank'
+  | 'Practice Paper'
+  | 'Previous Year Paper'
+  | 'MCQ'
+  | 'Worksheet'
+  | 'Assignment'
+  | 'Study Material'
+  | 'Reference Material'
+  | 'Other';
+
+export type BoardType = 'CBSE' | 'ICSE' | 'State Board' | 'IB' | 'Cambridge' | 'Olympiad';
+export type MediumType = 'English' | 'Hindi' | 'Bilingual' | 'Regional';
+export type MaterialStatus = 'draft' | 'published' | 'archived';
+
+export interface BasicPackageMetadata {
+  packageAccess: 'free' | 'basic_only' | 'public_preview';
+  viewOnline: boolean;
+  downloadAllowed: boolean;
+  downloadLimit: number; // -1 for unlimited
+  printAllowed: boolean;
+}
+
+export interface ProPackageMetadata {
+  detailedDescription: string;
+  learningObjective: string;
+  difficultyLevel: 'easy' | 'medium' | 'hard' | 'olympiad';
+  estimatedStudyTime: string;
+  tags: string[];
+  keywords: string;
+  prerequisiteTopic?: string;
+  relatedMaterials?: string;
+  solutionAvailable: boolean;
+  answerKeyAvailable: boolean;
+  packageAccess: 'pro_only' | 'basic_pro' | 'public_preview';
+  viewOnline: boolean;
+  downloadAllowed: boolean;
+  printAllowed: boolean;
+  downloadLimit: number;
+  watermarkEnabled: boolean;
+  watermarkText?: string;
+  expiryDate?: string;
+}
+
+export interface TeacherPackageMetadata {
+  teachingNotes: string;
+  lessonPlan: string;
+  teachingDuration: string;
+  learningObjectives: string;
+  teachingMethod: 'Interactive Discussion' | 'Hands-on Activity' | 'Direct Instruction' | 'Flipped Classroom' | 'Problem Solving' | 'Other';
+  requiredResources: string;
+  homeworkAssignment: string;
+  answerKey: boolean;
+  answerKeyNotes: string;
+  teacherInstructions: string;
+  evaluationNotes: string;
+  packageAccess: 'teacher_only' | 'teacher_admin' | 'selected_teachers';
+  selectedTeacherIds: string[];
+  viewAllowed: boolean;
+  downloadAllowed: boolean;
+  printAllowed: boolean;
+  shareAllowed: boolean;
+  copyAllowed: boolean;
+  expiryDate?: string;
+}
+
+export interface SchoolPackageMetadata {
+  institutionName: string;
+  institutionId: string;
+  institutionType: 'K-12 School' | 'Coaching Institute' | 'Group of Schools' | 'Franchise Academy' | 'Independent School';
+  branch: string;
+  academicYear: string;
+  department: string;
+  divisionSection: string;
+  learningObjective: string;
+  instructions: string;
+  assessmentInfo: string;
+  institutionAccess: 'all_institutions' | 'selected_institution' | 'selected_branch' | 'selected_class' | 'selected_section' | 'selected_teachers' | 'selected_students';
+  selectedInstitutions?: string[];
+  selectedBranches?: string[];
+  selectedSections?: string[];
+  selectedTeachers?: string[];
+  selectedStudents?: string[];
+}
+
+export interface PackageMaterial {
+  id: string;
+  package_type: PackageType;
+  class_id: string;
+  subject_id: string;
+  chapter_id: string;
+  topic_id: string;
+  subtopic_id?: string;
+  subtopic_title?: string;
+  academic_year: string;
+  board: BoardType;
+  medium: MediumType;
+  material_type: MaterialType;
+  title: string;
+  description: string;
+  file_url: string;
+  thumbnail_url?: string;
+  file_name: string;
+  file_size: string; // e.g. "2.4 MB"
+  file_type: string; // e.g. "PDF", "DOCX", "PPTX", "ZIP"
+  visibility: 'public' | 'package_only' | 'restricted' | 'private';
+  access_level: string;
+  download_allowed: boolean;
+  download_limit: number;
+  print_allowed: boolean;
+  watermark_enabled: boolean;
+  expiry_date?: string;
+  institution_id?: string;
+  branch_id?: string;
+  teacher_id?: string;
+  status: MaterialStatus;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+
+  // Package-specific data payloads
+  basic_data?: BasicPackageMetadata;
+  pro_data?: ProPackageMetadata;
+  teacher_data?: TeacherPackageMetadata;
+  school_data?: SchoolPackageMetadata;
+}
+
 export type ContentType =
   | 'notes'
   | 'practice_paper'
@@ -299,6 +431,7 @@ export type AdminActiveSection =
   | 'content-chapters'
   | 'content-topics'
   | 'content-material-upload'
+  | 'content-materials-manage'
   | 'content-practice-papers'
   | 'content-question-bank'
   | 'content-mcqs'
